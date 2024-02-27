@@ -19,7 +19,8 @@ Open the **Scop3P API** using the Swagger UI click [here](https://iomics.ugent.b
 This section contains the links to our online Jupyter Notebooks. We would like to invite you to contribute to our repository if you want to share your Jupyter Notebooks related to Scop3P. Please contact us at [pathmanaban.ramasamy@ugent.be](mailto:pathmanaban.ramasamy@ugent.be).
 
 ### Modifications endpoint (GET `scop3p/api/modifications`)
-Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN).
+Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN) and plotting some matplotlib charts.
+
 <p align="center">
 <img width="750" alt="image" src="https://github.com/Bio2Byte/Scop3P-notebooks/assets/1646576/8d61c88e-4bd7-48e0-856d-f3d70ed238dc">
 </p>
@@ -27,6 +28,17 @@ Simple notebook fetching modifications for UniProt ID [O00571](https://www.unipr
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_+O00571.ipynb)
+
+### Modifications endpoint (GET `scop3p/api/modifications`) with 3D structure visualization
+Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN) and rendering the modifications on the 3D structure [4PXA](https://www.rcsb.org/structure/4PXA).
+
+<p align="center">
+  <img width="750" alt="image" src="https://github.com/Bio2Byte/Scop3P-notebooks/assets/1646576/13a5876e-35a1-451e-b942-7b027e5721c5">
+</p>
+
+Click on the next link to open the Jupyter Notebook in an executable environment:
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_O00571_4PXA.ipynb)
 
 ## About
 
