@@ -34,7 +34,7 @@ The repository was created by the [Bio2Byte research group](https://bio2byte.be)
 
 - [Compomics](https://www.compomics.com): Computational Omics and Systems Biology Group
 - [IBsquare](https://ibsquare.be): The Interuniversity Institute of Bioinformatics in Brussels
-- [VIB](https://vib.be/en)): Vlaams Instituut voor Biotechnologie
+- [VIB](https://vib.be/en): Vlaams Instituut voor Biotechnologie
 - [UGent](https://www.ugent.be): Universiteit Gent
 - [VUB](https://vub.be): Vrije Universiteit Brussel
 - [Elixir BE](https://www.elixir-belgium.org): Elixir Belgium
