@@ -40,6 +40,18 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_O00571_4PXA.ipynb)
 
+
+### Modifications endpoint (GET `scop3p/api/modifications`) with biophysical predictions
+Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN) and plotting the Linear version of the online Ring plot.
+
+<p align="center">
+  <img width="750" alt="image" src="https://github.com/Bio2Byte/Scop3P-notebooks/assets/1646576/9792d23a-6838-4d84-81c8-815103549b71">
+</p>
+
+Click on the next link to open the Jupyter Notebook in an executable environment:
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_O00571_4PXA-b2btools.ipynb)
+
 ## About
 
 The repository was created by the [Bio2Byte research group](https://bio2byte.be) at Vrije Universiteit Brussel and is maintained in collaboration with [Compomics]((https://www.compomics.com) at the VIB-UGent Center for Medical Biotechnology.
