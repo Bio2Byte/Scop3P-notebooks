@@ -16,7 +16,7 @@ Open the **Scop3P API** using the Swagger UI click [here](https://iomics.ugent.b
 
 ## Jupyter Notebook index
 
-This section contains the links to our online Jupyter Notebooks. We would like to invite you to contribute to our repository if you want to share your Jupyter Notebooks related to Scop3P. Please contact us at [pathmanaban.ramasamy@ugent.vib.be](mailto:pathmanaban.ramasamy@ugent.vib.be).
+This section contains the links to our online Jupyter Notebooks. We would like to invite you to contribute to our repository if you want to share your Jupyter Notebooks related to Scop3P. Please contact us at [pathmanaban.ramasamy@ugent.be](mailto:pathmanaban.ramasamy@ugent.be).
 
 ### Modifications endpoint (GET `scop3p/api/modifications`)
 Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN).
