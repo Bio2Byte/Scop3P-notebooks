@@ -19,3 +19,16 @@ Simple notebook fetching modifications for UniProt ID [O00571](https://www.unipr
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_+O00571.ipynb)
+
+## About
+
+- [Compomics](https://www.compomics.com): Computational Omics and Systems Biology Group
+- [IBsquare](https://ibsquare.be): The Interuniversity Institute of Bioinformatics in Brussels
+- [VIB](https://vib.be/en)): Vlaams Instituut voor Biotechnologie
+- [UGent](https://www.ugent.be): Universiteit Gent
+- [VUB](https://vub.be): Vrije Universiteit Brussel
+- [Elixir BE](https://www.elixir-belgium.org): Elixir Belgium
+
+<img width="962" alt="image" src="https://github.com/Bio2Byte/Scop3P-notebooks/assets/1646576/e2348f29-6b9b-4d0c-bbb4-1d309d34e46f">
+
+Repository created by the [Bio2Byte research group](https://bio2byte.be), Vrije Universiteit Brussels, Belgium :belgium:
