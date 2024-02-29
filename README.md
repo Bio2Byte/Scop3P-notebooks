@@ -1,7 +1,7 @@
 # Scop3P-notebooks
-Jupyter Notebook examples of SCOP3P REST API services.
+Jupyter Notebook examples of Scop3P REST API services.
 
-## About SCOP3P[^1]
+## About Scop3P[^1]
 
 **Scop3P: A Comprehensive Resource of Human Phosphosites within Their Full Context**
 
@@ -54,11 +54,11 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 ## About
 
-The repository was created by the [Bio2Byte research group](https://bio2byte.be) at Vrije Universiteit Brussel and is maintained in collaboration with [Compomics]((https://www.compomics.com) at the VIB-UGent Center for Medical Biotechnology.
+The repository was created by the [Bio2Byte research group](https://bio2byte.be) at Vrije Universiteit Brussel and is maintained in collaboration with [Compomics](https://www.compomics.com) at the VIB-UGent Center for Medical Biotechnology.
 
 - [Compomics](https://www.compomics.com): Computational Omics and Systems Biology Group
 - [IBsquare](https://ibsquare.be): The Interuniversity Institute of Bioinformatics in Brussels
-- [VIB](https://vib.be/en)): Vlaams Instituut voor Biotechnologie
+- [VIB](https://vib.be/en): Vlaams Instituut voor Biotechnologie
 - [UGent](https://www.ugent.be): Universiteit Gent
 - [VUB](https://vub.be): Vrije Universiteit Brussel
 - [Elixir BE](https://www.elixir-belgium.org): Elixir Belgium
