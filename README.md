@@ -42,7 +42,7 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 
 ### Modifications endpoint (GET `scop3p/api/modifications`) with biophysical predictions
-Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN) and plotting the Linear version of the online Ring plot.
+Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN), predicting the biophysical properties and visualizing the results in different strategies.
 
 #### Biophysical properties mapped onto AF structures in multi-panel view
 
