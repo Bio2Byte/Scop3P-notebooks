@@ -42,7 +42,21 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 
 ### Modifications endpoint (GET `scop3p/api/modifications`) with biophysical predictions
-Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN) and plotting the Linear version of the online Ring plot.
+Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN), predicting the biophysical properties and visualizing the results using different strategies.
+
+#### Biophysical properties mapped onto AF structures in multi-panel view
+
+<p align="center">
+  <img width="750" alt="image" src=https://github.com/Bio2Byte/Scop3P-notebooks/assets/16449092/8c59e844-b607-4c2c-b827-7c014af397ce>
+</p>
+
+#### Biophysical properties and P-sites mapped onto 1D amino acid sequence position
+
+<p align="center">
+  <img width="750" alt="image" src=https://github.com/Bio2Byte/Scop3P-notebooks/assets/16449092/3a366740-2d1c-4ceb-9917-d7f1faaf65ec>
+</p>
+
+#### Biophysical properties linearized version of the online "RING" plot
 
 <p align="center">
   <img width="750" alt="image" src="https://github.com/Bio2Byte/Scop3P-notebooks/assets/1646576/9792d23a-6838-4d84-81c8-815103549b71">
