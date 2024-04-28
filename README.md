@@ -38,7 +38,7 @@ Simple notebook fetching modifications for UniProt ID [O00571](https://www.unipr
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_O00571_4PXA.ipynb)
+[![Google Collab](https://upload.wikimedia.org/wikipedia/commons/archive/d/d0/20221103151253%21Google_Colaboratory_SVG_Logo.svg)](https://colab.research.google.com/github/Bio2Byte/Scop3P-notebooks/blob/main/Scop3P_%20O00571.ipynb)
 
 
 ### Modifications endpoint (GET `scop3p/api/modifications`) with biophysical predictions
