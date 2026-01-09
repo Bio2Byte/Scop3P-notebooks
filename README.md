@@ -27,7 +27,7 @@ Simple notebook fetching modifications for UniProt ID [O00571](https://www.unipr
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_+O00571.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_API.ipynb)
 
 ### Modifications endpoint (GET `scop3p/api/modifications`) with 3D structure visualization
 Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN) and rendering the modifications on the 3D structure [4PXA](https://www.rcsb.org/structure/4PXA).
@@ -36,9 +36,10 @@ Simple notebook fetching modifications for UniProt ID [O00571](https://www.unipr
   <img width="750" alt="image" src="https://github.com/Bio2Byte/Scop3P-notebooks/assets/1646576/13a5876e-35a1-451e-b942-7b027e5721c5">
 </p>
 
-Click on the Google collab icon to open the Jupyter Notebook in an executable environment:
+Click on the next link to open the Jupyter Notebook in an executable environment:
 
-<img width="750" alt="image" src="https://upload.wikimedia.org/wikipedia/commons/archive/d/d0/20221103151253%21Google_Colaboratory_SVG_Logo.svg" width=10% height=10%>(https://colab.research.google.com/github/Bio2Byte/Scop3P-notebooks/blob/main/Scop3P_%20O00571.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_PTM_structure_viz.ipynb)
+
 
 
 ### Modifications endpoint (GET `scop3p/api/modifications`) with biophysical predictions
@@ -64,7 +65,7 @@ Simple notebook fetching modifications for UniProt ID [O00571](https://www.unipr
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_O00571_4PXA-b2btools.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_PTM_structure_viz.ipynb)
 
 ## About
 
