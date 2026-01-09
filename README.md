@@ -38,7 +38,7 @@ Simple notebook fetching modifications for UniProt ID [O00571](https://www.unipr
 
 Click on the Google collab icon to open the Jupyter Notebook in an executable environment:
 
-<img src="https://upload.wikimedia.org/wikipedia/commons/archive/d/d0/20221103151253%21Google_Colaboratory_SVG_Logo.svg" width=90% height=90%>(https://colab.research.google.com/github/Bio2Byte/Scop3P-notebooks/blob/main/Scop3P_%20O00571.ipynb)
+<img width="750" alt="image" src="https://upload.wikimedia.org/wikipedia/commons/archive/d/d0/20221103151253%21Google_Colaboratory_SVG_Logo.svg" width=10% height=10%>(https://colab.research.google.com/github/Bio2Byte/Scop3P-notebooks/blob/main/Scop3P_%20O00571.ipynb)
 
 
 ### Modifications endpoint (GET `scop3p/api/modifications`) with biophysical predictions
