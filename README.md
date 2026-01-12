@@ -27,7 +27,7 @@ Simple notebook fetching modifications for UniProt ID [O00571](https://www.unipr
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?labpath=Scop3P_API.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Bio2Byte/Scop3P-notebooks/blob/main/Scop3P_API.ipynb)
 
 ### Modifications endpoint (GET `scop3p/api/modifications`) with 3D structure visualization
 Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN) and rendering the modifications on the 3D structure [4PXA](https://www.rcsb.org/structure/4PXA).
