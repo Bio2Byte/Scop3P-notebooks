@@ -1,0 +1,9 @@
+{
+  "name": "Scop3P Teaching Environment",
+  "build": { "dockerfile": "Dockerfile" },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-toolsai.jupyter"]
+    }
+  }
+}
