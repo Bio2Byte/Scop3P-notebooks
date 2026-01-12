@@ -1,0 +1,11 @@
+numpy
+scipy
+pandas
+matplotlib
+networkx
+biopython
+ipywidgets
+nglview
+py3Dmol
+pyvis
+b2btools==3.0.7b2
