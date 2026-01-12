@@ -27,6 +27,8 @@ Simple notebook fetching modifications for UniProt ID [O00571](https://www.unipr
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/Bio2Byte/Scop3P-notebooks)
+
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Bio2Byte/Scop3P-notebooks/blob/main/Scop3P_API.ipynb)
 
 ### Modifications endpoint (GET `scop3p/api/modifications`) with 3D structure visualization
