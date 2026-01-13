@@ -8,4 +8,4 @@ ipywidgets
 nglview
 py3Dmol
 pyvis
-b2btools==3.0.7b2
+b2btools==3.0.8b3
