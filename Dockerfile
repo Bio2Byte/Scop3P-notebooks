@@ -1,4 +1,4 @@
-FROM quay.io/jupyter/scipy-notebook:python-3.11
+FROM quay.io/jupyter/minimal-notebook:python-3.12
 
 COPY --chown=root --chmod=755 TM-align /usr/local/bin/TM-align
 
