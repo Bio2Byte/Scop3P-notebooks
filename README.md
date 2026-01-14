@@ -42,7 +42,9 @@ This notebook enables interactive visualization of PTMs and disease variants by 
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
-[![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb)
+| Notebook | Interactive app |
+|----------|-----------------|
+| [![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) | [![Launch Voila App](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
 
 
 ### Biophysical prediction and mutation effects
@@ -58,7 +60,9 @@ This notebook predicts sequence-based biophysical properties of proteins from a 
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
-[![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb)
+| Notebook | Interactive app |
+|----------|-----------------|
+| [![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) | [![Launch Voila App](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) |
 
 
 ### Peptide-to-structure mapping
@@ -73,9 +77,10 @@ Interactive mapping of phosphopeptides—either fetched from Scop3P or uploaded 
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
-| Scop3P peptides | Upload your own peptides |
-|-----------------|--------------------------|
-| [![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_scop3p_voila.ipynb) | [![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_fileupload_voila.ipynb) |
+| Workflow | Notebook | Interactive app |
+|---------|----------|-----------------|
+| Scop3P peptides | [![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_scop3p_voila.ipynb) | [![Launch Voila App](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_scop3p_voila.ipynb) |
+| Upload your own peptides | [![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_fileupload_voila.ipynb) | [![Launch Voila App](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_fileupload_voila.ipynb) |
 
 
 ## About
