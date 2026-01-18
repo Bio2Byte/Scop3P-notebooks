@@ -42,9 +42,13 @@ This notebook enables interactive visualization of PTMs and disease variants by 
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
-| Notebook | Interactive app |
-|----------|-----------------|
-| [![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) | [![Launch Voila App](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
+| Notebook (JupyterLab) | Interactive app (Voilà) |
+|----------------------|--------------------------|
+| [![Open Notebook](https://img.shields.io/badge/Open-JupyterLab-orange?logo=jupyter)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-iatdk3tn/lab/tree/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/voila/render/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
+
+> ⚠️ **Chrome users**:  
+> Please open the *Notebook (JupyterLab)* link first to authenticate,  
+> then launch the *Interactive app (Voilà)*.
 
 
 ### Biophysical prediction and mutation effects
@@ -60,9 +64,11 @@ This notebook predicts sequence-based biophysical properties of proteins from a 
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
-| Notebook | Interactive app |
-|----------|-----------------|
-| [![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) | [![Launch Voila App](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) |
+| Notebook (JupyterLab) | Interactive app (Voilà) |
+|----------------------|--------------------------|
+| [![Open Notebook](https://img.shields.io/badge/Open-JupyterLab-orange?logo=jupyter)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/lab/tree/notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/voila/render/notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) |
+
+> ⚠️ Chrome users: open the Notebook link first to authenticate, then launch the app.
 
 
 ### Peptide-to-structure mapping
@@ -77,11 +83,12 @@ Interactive mapping of phosphopeptides—either fetched from Scop3P or uploaded 
 
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
-| Workflow | Notebook | Interactive app |
-|---------|----------|-----------------|
-| Scop3P peptides | [![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_scop3p_voila.ipynb) | [![Launch Voila App](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_scop3p_voila.ipynb) |
-| Upload your own peptides | [![Launch Binder](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_fileupload_voila.ipynb) | [![Launch Voila App](https://mybinder.org/badge_logo.svg)](http://35.241.202.191/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_fileupload_voila.ipynb) |
+| Workflow | Notebook (JupyterLab) | Interactive app (Voilà) |
+|---------|------------------------|--------------------------|
+| Scop3P peptides | [![Open Notebook](https://img.shields.io/badge/Open-JupyterLab-orange?logo=jupyter)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/lab/tree/notebooks/Peptide_mapper_scop3p_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/voila/render/notebooks/Peptide_mapper_scop3p_voila.ipynb) |
+| Upload your own peptides | [![Open Notebook](https://img.shields.io/badge/Open-JupyterLab-orange?logo=jupyter)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/lab/tree/notebooks/Peptide_mapper_fileupload_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/voila/render/notebooks/Peptide_mapper_fileupload_voila.ipynb) |
 
+> ⚠️ Chrome users: open the Notebook link first to authenticate, then launch the app.
 
 ## About
 
