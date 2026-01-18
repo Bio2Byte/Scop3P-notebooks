@@ -44,7 +44,7 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 | Notebook (JupyterLab) | Interactive app (Voilà) |
 |----------------------|--------------------------|
-| [![Open Notebook](https://img.shields.io/badge/Open-JupyterLab-orange?logo=jupyter)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-iatdk3tn/lab/tree/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/voila/render/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
+| [![Open Notebook](https://img.shields.io/badge/Open-JupyterLab-orange?logo=jupyter)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/lab/tree/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/voila/render/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
 
 > ⚠️ **Chrome users**:  
 > Please open the *Notebook (JupyterLab)* link first to authenticate,  
