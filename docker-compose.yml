@@ -1,0 +1,24 @@
+services:
+  peptide-mapper:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.peptide_mapper
+    image: scop3p/peptide-mapper:dev
+    ports:
+      - "8001:8000"
+
+  structure-viz:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.structure_viz
+    image: scop3p/structure-viz:dev
+    ports:
+      - "8002:8000"
+
+  mutation-effect:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mutation_effect
+    image: scop3p/mutation-effect:dev
+    ports:
+      - "8003:8000"
