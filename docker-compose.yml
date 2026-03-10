@@ -1,5 +1,6 @@
 services:
   peptide-mapper:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: docker/Dockerfile.peptide_mapper
@@ -8,6 +9,7 @@ services:
       - "8001:8000"
 
   structure-viz:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: docker/Dockerfile.structure_viz
@@ -16,6 +18,7 @@ services:
       - "8002:8000"
 
   mutation-effect:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: docker/Dockerfile.mutation_effect
