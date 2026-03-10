@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
 from apps.common.structure_viz import StructureOps, StructureViewerBuilder, StructureVizService  # noqa: E402
+from apps.common.ui_shell import scop3p_card, scop3p_shell  # noqa: E402
 
 
 class StructureVizController:
@@ -54,84 +55,113 @@ def _scroll_df(dataframe: pd.DataFrame) -> ui.Tag:
     return ui.HTML(css + f"<div class='scroll-df-wrap'>{dataframe.to_html(index=False, escape=False)}</div>")
 
 
-app_ui = ui.page_fluid(
-    ui.h2("Structure Visualisation (Shiny)"),
-    ui.layout_columns(
-        ui.input_text("accession", "UniProt", value="", placeholder="e.g. P07949"),
-        ui.input_action_button("set_accession", "Set protein", class_="btn-info"),
-        col_widths=[8, 4],
+app_ui = scop3p_shell(
+    "Structure Visualisation",
+    "Inspect PTMs, disease variants, 3D structures, Bio2Byte overlays, residue interaction networks, and TM-align comparisons within one structure-centric workspace.",
+    ui.div(
+        scop3p_card(
+            "Protein Setup",
+            ui.layout_columns(
+                ui.input_text("accession", "UniProt", value="", placeholder="e.g. P07949"),
+                ui.input_action_button("set_accession", "Set protein", class_="btn-info"),
+                col_widths=[8, 4],
+            ),
+        ),
+        scop3p_card(
+            "Session Status",
+            ui.output_text_verbatim("status"),
+            extra_class="scop3p-status",
+        ),
+        class_="scop3p-header-grid",
     ),
-    ui.output_text_verbatim("status"),
     ui.navset_tab(
         ui.nav_panel(
             "1) PTMs",
-            ui.input_action_button("fetch_ptm", "Fetch PTMs", class_="btn-warning"),
-            ui.output_ui("ptm_table"),
+            scop3p_card(
+                "PTM Table",
+                ui.input_action_button("fetch_ptm", "Fetch PTMs", class_="btn-warning"),
+                ui.output_ui("ptm_table"),
+            ),
         ),
         ui.nav_panel(
             "2) Variants",
-            ui.input_action_button("fetch_variants", "Fetch disease-associated variants", class_="btn-warning"),
-            ui.output_ui("variant_table"),
+            scop3p_card(
+                "Variant Table",
+                ui.input_action_button("fetch_variants", "Fetch disease-associated variants", class_="btn-warning"),
+                ui.output_ui("variant_table"),
+            ),
         ),
         ui.nav_panel(
             "3) 3D Viewer",
-            ui.layout_columns(
-                ui.input_radio_buttons("structure_source", "Source", {"pdb": "PDB", "af": "AlphaFold"}, selected="pdb", inline=True),
-                ui.input_text("pdb_id", "PDB ID", value="", placeholder="e.g. 2IVT"),
-                ui.input_text("chain", "Chain", value="", placeholder="A (optional)"),
-                col_widths=[4, 4, 4],
+            scop3p_card(
+                "Structure Viewer",
+                ui.layout_columns(
+                    ui.input_radio_buttons("structure_source", "Source", {"pdb": "PDB", "af": "AlphaFold"}, selected="pdb", inline=True),
+                    ui.input_text("pdb_id", "PDB ID", value="", placeholder="e.g. 2IVT"),
+                    ui.input_text("chain", "Chain", value="", placeholder="A (optional)"),
+                    col_widths=[4, 4, 4],
+                ),
+                ui.layout_columns(
+                    ui.input_action_button("fetch_af", "Fetch AlphaFold", class_="btn-warning"),
+                    ui.input_action_button("render_structure", "Show 3D", class_="btn-success"),
+                    col_widths=[6, 6],
+                ),
+                ui.output_ui("structure_view"),
             ),
-            ui.layout_columns(
-                ui.input_action_button("fetch_af", "Fetch AlphaFold", class_="btn-warning"),
-                ui.input_action_button("render_structure", "Show 3D", class_="btn-success"),
-                col_widths=[6, 6],
-            ),
-            ui.output_ui("structure_view"),
         ),
         ui.nav_panel(
             "4) Bio2Byte",
-            ui.layout_columns(
-                ui.input_action_button("fetch_seq", "Fetch sequence", class_="btn-warning"),
-                ui.input_action_button("run_b2b", "Run predictions", class_="btn-danger"),
-                ui.input_action_button("render_b2b_3d", "Show 3D", class_="btn-success"),
-                col_widths=[4, 4, 4],
+            scop3p_card(
+                "Bio2Byte",
+                ui.layout_columns(
+                    ui.input_action_button("fetch_seq", "Fetch sequence", class_="btn-warning"),
+                    ui.input_action_button("run_b2b", "Run predictions", class_="btn-danger"),
+                    ui.input_action_button("render_b2b_3d", "Show 3D", class_="btn-success"),
+                    col_widths=[4, 4, 4],
+                ),
+                ui.input_select("b2b_metric", "Color by", choices=[]),
+                ui.output_ui("b2b_table"),
+                ui.output_ui("b2b_view"),
             ),
-            ui.input_select("b2b_metric", "Color by", choices=[]),
-            ui.output_ui("b2b_table"),
-            ui.output_ui("b2b_view"),
         ),
         ui.nav_panel(
             "5) RIN",
-            ui.layout_columns(
-                ui.input_action_button("rin_dl_af", "Download AlphaFold PDB", class_="btn-warning"),
-                ui.input_file("rin_upload", "Or upload PDB", accept=[".pdb"], multiple=False),
-                ui.input_text("rin_chain", "Chain", value="A"),
-                ui.input_slider("rin_cutoff", "Cutoff Å", min=4.0, max=12.0, value=8.0, step=0.5),
-                col_widths=[3, 4, 2, 3],
+            scop3p_card(
+                "Residue Interaction Network",
+                ui.layout_columns(
+                    ui.input_action_button("rin_dl_af", "Download AlphaFold PDB", class_="btn-warning"),
+                    ui.input_file("rin_upload", "Or upload PDB", accept=[".pdb"], multiple=False),
+                    ui.input_text("rin_chain", "Chain", value="A"),
+                    ui.input_slider("rin_cutoff", "Cutoff Å", min=4.0, max=12.0, value=8.0, step=0.5),
+                    col_widths=[3, 4, 2, 3],
+                ),
+                ui.layout_columns(
+                    ui.input_action_button("build_rin", "Build RIN", class_="btn-danger"),
+                    ui.input_action_button("show_rin", "Show RIN", class_="btn-success"),
+                    col_widths=[6, 6],
+                ),
+                ui.output_ui("rin_view"),
             ),
-            ui.layout_columns(
-                ui.input_action_button("build_rin", "Build RIN", class_="btn-danger"),
-                ui.input_action_button("show_rin", "Show RIN", class_="btn-success"),
-                col_widths=[6, 6],
-            ),
-            ui.output_ui("rin_view"),
         ),
         ui.nav_panel(
             "6) TM-align",
-            ui.input_file("tm_pdb1", "PDB 1", accept=[".pdb"], multiple=False),
-            ui.input_file("tm_pdb2", "PDB 2", accept=[".pdb"], multiple=False),
-            ui.layout_columns(
-                ui.input_text("tm_chain1", "Chain 1", value="A"),
-                ui.input_numeric("tm_start1", "Start 1", value=None),
-                ui.input_numeric("tm_end1", "End 1", value=None),
-                ui.input_text("tm_chain2", "Chain 2", value="A"),
-                ui.input_numeric("tm_start2", "Start 2", value=None),
-                ui.input_numeric("tm_end2", "End 2", value=None),
-                col_widths=[2, 2, 2, 2, 2, 2],
+            scop3p_card(
+                "TM-align",
+                ui.input_file("tm_pdb1", "PDB 1", accept=[".pdb"], multiple=False),
+                ui.input_file("tm_pdb2", "PDB 2", accept=[".pdb"], multiple=False),
+                ui.layout_columns(
+                    ui.input_text("tm_chain1", "Chain 1", value="A"),
+                    ui.input_numeric("tm_start1", "Start 1", value=None),
+                    ui.input_numeric("tm_end1", "End 1", value=None),
+                    ui.input_text("tm_chain2", "Chain 2", value="A"),
+                    ui.input_numeric("tm_start2", "Start 2", value=None),
+                    ui.input_numeric("tm_end2", "End 2", value=None),
+                    col_widths=[2, 2, 2, 2, 2, 2],
+                ),
+                ui.input_action_button("run_tmalign", "Align + Visualize", class_="btn-primary"),
+                ui.output_text_verbatim("tm_output"),
+                ui.output_ui("tm_view"),
             ),
-            ui.input_action_button("run_tmalign", "Align + Visualize", class_="btn-primary"),
-            ui.output_text_verbatim("tm_output"),
-            ui.output_ui("tm_view"),
         ),
     ),
 )

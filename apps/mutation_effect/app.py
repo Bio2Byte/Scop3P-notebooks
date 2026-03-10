@@ -14,6 +14,7 @@ from apps.common.mutation_effect import (  # noqa: E402
     MutationEffectService,
     MutationEffectViews,
 )
+from apps.common.ui_shell import scop3p_card, scop3p_shell  # noqa: E402
 
 
 service = MutationEffectService()
@@ -26,185 +27,67 @@ def _bokeh_iframe(html_doc: str) -> ui.Tag:
     )
 
 
-def _panel(title: str, *children) -> ui.Tag:
-    return ui.div(
-        ui.h4(title, style="margin-top:0;margin-bottom:0.75rem;"),
-        *children,
-        style="background:#fff;border:1px solid #d9dee8;border-radius:14px;padding:1rem;",
-    )
-
-
-app_ui = ui.page_fluid(
-    ui.tags.style(
-        """
-        :root {
-          --bg: #f6f4ef;
-          --panel: #ffffff;
-          --ink: #1f2937;
-          --muted: #617184;
-          --accent: #1f6fb2;
-          --accent-2: #d2872c;
-          --line: #d9dee8;
-        }
-        body {
-          background:
-            radial-gradient(circle at top right, rgba(210,135,44,0.08), transparent 26%),
-            linear-gradient(180deg, #f8f6f1 0%, #eef2f7 100%);
-          color: var(--ink);
-        }
-        .app-shell {
-          max-width: 1600px;
-          margin: 0 auto;
-          padding: 18px 10px 32px;
-        }
-        .hero {
-          display: grid;
-          grid-template-columns: 1.2fr 0.8fr;
-          gap: 18px;
-          margin-bottom: 18px;
-        }
-        .hero-copy {
-          background: linear-gradient(135deg, #11263a 0%, #234d73 100%);
-          color: #fff;
-          border-radius: 18px;
-          padding: 22px 24px;
-          box-shadow: 0 18px 40px rgba(17,38,58,0.18);
-        }
-        .hero-copy h2 {
-          margin: 0 0 8px;
-          font-size: 2rem;
-          font-weight: 700;
-          letter-spacing: -0.02em;
-        }
-        .hero-copy p {
-          margin: 0;
-          max-width: 70ch;
-          color: rgba(255,255,255,0.84);
-        }
-        .status-card {
-          background: rgba(255,255,255,0.9);
-          border: 1px solid rgba(255,255,255,0.65);
-          border-radius: 18px;
-          padding: 18px;
-          box-shadow: 0 18px 40px rgba(17,38,58,0.08);
-        }
-        .status-card pre {
-          margin: 0;
-          white-space: pre-wrap;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-          font-size: 13px;
-        }
-        .section-grid {
-          display: grid;
-          grid-template-columns: 420px minmax(0, 1fr);
-          gap: 18px;
-          align-items: start;
-        }
-        .note {
-          color: var(--muted);
-          font-size: 0.95rem;
-        }
-        .shiny-input-container {
-          width: 100%;
-        }
-        .nav-tabs {
-          margin-top: 8px;
-        }
-        .nav-tabs .nav-link {
-          color: #274560;
-          font-weight: 600;
-        }
-        .nav-tabs .nav-link.active {
-          background: #fff;
-          border-color: var(--line) var(--line) #fff;
-        }
-        .action-row {
-          display: flex;
-          gap: 10px;
-          align-items: end;
-        }
-        .summary-banner {
-          margin-bottom: 12px;
-          padding: 10px 12px;
-          border-radius: 10px;
-          background: #fbf6e8;
-          border: 1px solid #ecd7ab;
-          color: #684a17;
-          font-weight: 600;
-        }
-        @media (max-width: 1000px) {
-          .hero, .section-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-        """
-    ),
+app_ui = scop3p_shell(
+    "Mutation Effect",
+    "Compare wild-type and mutant Bio2Byte predictions, keep Scop3P PTM context visible, and derive mutation-centric inference summaries from the same workflow.",
     ui.div(
-        ui.div(
-            ui.div(
-                ui.h2("Mutation Effect", style="margin:0;"),
-                ui.p(
-                    "Compare WT and mutant Bio2Byte predictions, overlay Scop3P PTMs, and derive mutation-centric inference summaries.",
-                    style="margin:8px 0 0;",
-                ),
-                class_="hero-copy",
-            ),
-            ui.div(ui.output_text_verbatim("status"), class_="status-card"),
-            class_="hero",
+        scop3p_card(
+            "Session Status",
+            ui.output_text_verbatim("status"),
+            extra_class="scop3p-status",
         ),
-        ui.navset_tab(
-            ui.nav_panel(
-                "1) WT prediction",
-                ui.div(
-                    _panel(
-                        "Protein Setup",
-                        ui.input_text("accession", "UniProt accession", value="P07949"),
-                        ui.input_action_button("run_wt", "Fetch + Predict WT", class_="btn btn-primary"),
-                        ui.p("This runs the wild-type UniProt fetch, Scop3P PTM fetch, and Bio2Byte prediction.", class_="note"),
-                    ),
-                    _panel(
-                        "WT Results",
-                        ui.output_ui("wt_results"),
-                    ),
-                    class_="section-grid",
-                ),
-            ),
-            ui.nav_panel(
-                "2) Mutant prediction",
-                ui.div(
-                    _panel(
-                        "Mutation Setup",
-                        ui.input_text("positions", "Positions", value="606", placeholder="e.g. 10,25,100"),
-                        ui.input_text("mut_aas", "To amino acid", value="A", placeholder="e.g. A,V,G"),
-                        ui.input_action_button("run_mut", "Apply + Predict", class_="btn btn-warning"),
-                        ui.p("Use comma-separated 1-indexed positions and amino-acid targets.", class_="note"),
-                    ),
-                    _panel(
-                        "Mutant Results",
-                        ui.output_ui("mut_results"),
-                    ),
-                    class_="section-grid",
-                ),
-            ),
-            ui.nav_panel(
-                "3) Inference",
-                ui.div(
-                    _panel(
-                        "Label Shift Analysis",
-                        ui.input_action_button("run_inf", "Run inference", class_="btn btn-info"),
-                        ui.p("Summarize class shifts at the mutation site and within a +/-5 residue window.", class_="note"),
-                    ),
-                    _panel(
-                        "Inference Results",
-                        ui.output_ui("inf_results"),
-                    ),
-                    class_="section-grid",
-                ),
-            ),
-        ),
-        class_="app-shell",
+        class_="scop3p-header-grid",
     ),
-    title="Mutation Effect (Shiny)",
+    ui.navset_tab(
+        ui.nav_panel(
+            "1) WT prediction",
+            ui.div(
+                scop3p_card(
+                    "Protein Setup",
+                    ui.input_text("accession", "UniProt accession", value="P07949"),
+                    ui.input_action_button("run_wt", "Fetch + Predict WT", class_="btn btn-primary"),
+                    ui.p("This runs the wild-type UniProt fetch, Scop3P PTM fetch, and Bio2Byte prediction.", class_="scop3p-note"),
+                ),
+                scop3p_card(
+                    "WT Results",
+                    ui.output_ui("wt_results"),
+                ),
+                class_="scop3p-two-col",
+            ),
+        ),
+        ui.nav_panel(
+            "2) Mutant prediction",
+            ui.div(
+                scop3p_card(
+                    "Mutation Setup",
+                    ui.input_text("positions", "Positions", value="606", placeholder="e.g. 10,25,100"),
+                    ui.input_text("mut_aas", "To amino acid", value="A", placeholder="e.g. A,V,G"),
+                    ui.input_action_button("run_mut", "Apply + Predict", class_="btn btn-warning"),
+                    ui.p("Use comma-separated 1-indexed positions and amino-acid targets.", class_="scop3p-note"),
+                ),
+                scop3p_card(
+                    "Mutant Results",
+                    ui.output_ui("mut_results"),
+                ),
+                class_="scop3p-two-col",
+            ),
+        ),
+        ui.nav_panel(
+            "3) Inference",
+            ui.div(
+                scop3p_card(
+                    "Label Shift Analysis",
+                    ui.input_action_button("run_inf", "Run inference", class_="btn btn-info"),
+                    ui.p("Summarize class shifts at the mutation site and within a +/-5 residue window.", class_="scop3p-note"),
+                ),
+                scop3p_card(
+                    "Inference Results",
+                    ui.output_ui("inf_results"),
+                ),
+                class_="scop3p-two-col",
+            ),
+        ),
+    ),
 )
 
 
@@ -346,7 +229,7 @@ def server(input, output, session):
     @render.ui
     def wt_results():
         if not wt_plot_html.get():
-            return ui.p("No WT prediction yet.", class_="note")
+            return ui.p("No WT prediction yet.", class_="scop3p-note")
         return ui.TagList(
             ui.HTML(MutationEffectViews.track_guide_html()),
             _bokeh_iframe(wt_plot_html.get()),
@@ -358,7 +241,7 @@ def server(input, output, session):
     @render.ui
     def mut_results():
         if not mut_plot_html.get():
-            return ui.p("No mutant prediction yet.", class_="note")
+            return ui.p("No mutant prediction yet.", class_="scop3p-note")
         return ui.TagList(
             ui.HTML(mut_summary_html.get()),
             ui.HTML(MutationEffectViews.track_guide_html()),
@@ -372,7 +255,7 @@ def server(input, output, session):
     def inf_results():
         sections = inf_sections.get()
         if not sections:
-            return ui.p("No inference results yet.", class_="note")
+            return ui.p("No inference results yet.", class_="scop3p-note")
         return ui.TagList(
             *[
                 ui.TagList(ui.h5(title), ui.HTML(table_html))

@@ -13,6 +13,7 @@ from shiny import App, reactive, render, ui
 from apps.common.models import PeptideSelectionMode
 from apps.common.peptide_mapper import PeptideMapperService, map_selection
 from apps.common.services import AlphaFoldService, Scop3PClient
+from apps.common.ui_shell import scop3p_card, scop3p_shell
 from apps.common.viewer import NGLViewerBuilder
 
 
@@ -51,56 +52,126 @@ def _as_selectize_choices(options: list[tuple[str, str]]) -> dict[str, str]:
     return {value: label for label, value in options}
 
 
-app_ui = ui.page_fluid(
-    ui.h2("Scop3P Peptide Mapper (Shiny)") ,
-    ui.p(
-        "Enter an accession, load peptides from Scop3P, filter/select peptides, "
-        "and visualize mapped regions on AlphaFold structure."
+app_ui = scop3p_shell(
+    "Peptide Mapper",
+    "Enter an accession, load peptides from Scop3P, filter and select mapped spans, then visualize coverage and modification sites on the AlphaFold structure.",
+    ui.tags.style(
+        """
+        .pm-controls-card .btn {
+          width: 100%;
+          min-height: 54px;
+          white-space: normal;
+        }
+        .pm-main-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 18px;
+          align-items: start;
+        }
+        .pm-top-row {
+          display: grid;
+          grid-template-columns: minmax(180px, 1fr) 140px minmax(280px, 1.2fr);
+          gap: 14px;
+          align-items: end;
+          margin-bottom: 14px;
+        }
+        .pm-actions-row {
+          display: grid;
+          grid-template-columns: minmax(260px, 320px) minmax(280px, 1fr);
+          gap: 18px;
+          align-items: start;
+        }
+        .pm-button-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        .pm-mods-row .form-group,
+        .pm-list-block .form-group {
+          margin-bottom: 0;
+        }
+        @media (max-width: 1200px) {
+          .pm-main-grid,
+          .pm-top-row,
+          .pm-actions-row,
+          .pm-button-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+        """
     ),
-    ui.layout_columns(
-        ui.input_text("accession", "ACC_ID", value="", placeholder="e.g. O00571"),
-        ui.input_action_button("load_btn", "Load", class_="btn-primary"),
-        ui.input_radio_buttons(
-            "list_mode",
-            "List",
-            choices=[PeptideSelectionMode.UNIQUE_SPANS.value, PeptideSelectionMode.ALL_ROWS.value],
-            selected=PeptideSelectionMode.UNIQUE_SPANS.value,
-            inline=True,
+    ui.div(
+        scop3p_card(
+            "Session Status",
+            ui.output_text_verbatim("status"),
+            extra_class="scop3p-status",
         ),
-        col_widths=[3, 2, 7],
-    ),
-    ui.input_text(
-        "search",
-        "Search",
-        placeholder="Filter: substring (SSFG), range (70-90), >=150, <=300, or single pos (154)",
-    ),
-    ui.input_selectize(
-        "peptides",
-        "Peptides",
-        choices={},
-        multiple=True,
-        options={"placeholder": "Select peptide entries"},
-    ),
-    ui.layout_columns(
-        ui.input_action_button("map_all", "Map all (filtered)", class_="btn-warning"),
-        ui.input_checkbox("show_mods", "Show modified sites (magenta)", value=True),
-        ui.input_radio_buttons(
-            "mods_scope",
-            "Mods",
-            choices=["Selected peptides only", "All protein mods"],
-            selected="Selected peptides only",
-            inline=True,
+        scop3p_card(
+            "Selection Summary",
+            ui.output_text_verbatim("summary"),
+            extra_class="scop3p-status",
         ),
-        ui.input_action_button("export_html", "Export styled HTML", class_="btn-info"),
-        col_widths=[2, 3, 5, 2],
+        class_="scop3p-header-grid",
     ),
-    ui.hr(),
-    ui.h4("Status"),
-    ui.output_text_verbatim("status"),
-    ui.h4("Selection Summary"),
-    ui.output_text_verbatim("summary"),
-    ui.h4("Structure Viewer"),
-    ui.output_ui("viewer"),
+    ui.div(
+        scop3p_card(
+            "Controls",
+            ui.div(
+                ui.input_text("accession", "ACC_ID", value="", placeholder="e.g. O00571"),
+                ui.input_action_button("load_btn", "Load", class_="btn-primary"),
+                ui.div(
+                    ui.input_radio_buttons(
+                        "list_mode",
+                        "List",
+                        choices=[PeptideSelectionMode.UNIQUE_SPANS.value, PeptideSelectionMode.ALL_ROWS.value],
+                        selected=PeptideSelectionMode.UNIQUE_SPANS.value,
+                        inline=False,
+                    ),
+                    class_="pm-list-block",
+                ),
+                class_="pm-top-row",
+            ),
+            ui.input_text(
+                "search",
+                "Search",
+                placeholder="Filter: substring (SSFG), range (70-90), >=150, <=300, or single pos (154)",
+            ),
+            ui.input_selectize(
+                "peptides",
+                "Peptides",
+                choices={},
+                multiple=True,
+                options={"placeholder": "Select peptide entries"},
+            ),
+            ui.div(
+                ui.div(
+                    ui.input_action_button("map_all", "Map all (filtered)", class_="btn-warning"),
+                    ui.input_action_button("export_html", "Export styled HTML", class_="btn-info"),
+                    class_="pm-button-grid",
+                ),
+                ui.div(
+                    ui.input_checkbox("show_mods", "Show modified sites (magenta)", value=True),
+                    ui.div(
+                        ui.input_radio_buttons(
+                            "mods_scope",
+                            "Mods",
+                            choices=["Selected peptides only", "All protein mods"],
+                            selected="Selected peptides only",
+                            inline=False,
+                        ),
+                        class_="pm-mods-row",
+                    ),
+                ),
+                class_="pm-actions-row",
+            ),
+            extra_class="pm-controls-card",
+        ),
+        scop3p_card(
+            "Structure Viewer",
+            ui.output_ui("viewer"),
+        ),
+        class_="pm-main-grid",
+    ),
 )
 
 
