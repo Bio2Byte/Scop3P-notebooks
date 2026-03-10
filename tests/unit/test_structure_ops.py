@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from apps.common.structure_viz import StructureVizService
 from apps.common.structure_viz import StructureOps
 
 
@@ -56,3 +57,18 @@ def test_run_tmalign_finds_existing_candidate(monkeypatch, tmp_path: Path) -> No
     path, report = StructureOps.run_tmalign(pdb1, pdb2, tmp_path, out_name="aligned")
     assert path == aligned
     assert report == "Aligned\n"
+
+
+def test_resolve_uploaded_or_remote_pdb_prefers_upload(tmp_path: Path) -> None:
+    service = StructureVizService(tmp_path)
+    source = tmp_path / "upload_source.pdb"
+    source.write_text(PDB_MINI)
+
+    resolved = service.resolve_uploaded_or_remote_pdb(
+        [{"datapath": str(source), "name": "user_file.pdb"}],
+        "2IVT",
+        target_name="copied.pdb",
+    )
+
+    assert resolved == tmp_path / "copied.pdb"
+    assert resolved.read_text() == PDB_MINI

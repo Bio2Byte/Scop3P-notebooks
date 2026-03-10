@@ -117,6 +117,31 @@ class StructureVizService:
         out_path.write_bytes(response.content)
         return out_path
 
+    def resolve_uploaded_or_remote_pdb(
+        self,
+        upload: list[dict[str, object]] | None,
+        pdb_id: str | None = None,
+        *,
+        target_name: str | None = None,
+    ) -> Path | None:
+        if upload:
+            upload_row = upload[0]
+            source = Path(str(upload_row["datapath"]))
+            filename = target_name or Path(str(upload_row["name"])).name
+            target = self.workdir / filename
+            target.write_bytes(source.read_bytes())
+            return target
+
+        if pdb_id and pdb_id.strip():
+            downloaded = self.download_pdb(pdb_id)
+            if target_name is None or downloaded.name == target_name:
+                return downloaded
+            target = self.workdir / target_name
+            target.write_bytes(downloaded.read_bytes())
+            return target
+
+        return None
+
 
 class ChainRangeSelect(Select):
     def __init__(self, chain_id: str, start: int | None, end: int | None) -> None:

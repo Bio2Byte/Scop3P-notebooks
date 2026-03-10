@@ -130,10 +130,11 @@ app_ui = scop3p_shell(
                 "Residue Interaction Network",
                 ui.layout_columns(
                     ui.input_action_button("rin_dl_af", "Download AlphaFold PDB", class_="btn-warning"),
-                    ui.input_file("rin_upload", "Or upload PDB", accept=[".pdb"], multiple=False),
+                    ui.input_file("rin_upload", "Upload local PDB", accept=[".pdb"], multiple=False),
+                    ui.input_text("rin_pdb_id", "Or fetch RCSB PDB ID", value="", placeholder="e.g. 2IVT"),
                     ui.input_text("rin_chain", "Chain", value="A"),
                     ui.input_slider("rin_cutoff", "Cutoff Å", min=4.0, max=12.0, value=8.0, step=0.5),
-                    col_widths=[3, 4, 2, 3],
+                    col_widths=[3, 3, 2, 2, 2],
                 ),
                 ui.layout_columns(
                     ui.input_action_button("build_rin", "Build RIN", class_="btn-danger"),
@@ -147,8 +148,16 @@ app_ui = scop3p_shell(
             "6) TM-align",
             scop3p_card(
                 "TM-align",
-                ui.input_file("tm_pdb1", "PDB 1", accept=[".pdb"], multiple=False),
-                ui.input_file("tm_pdb2", "PDB 2", accept=[".pdb"], multiple=False),
+                ui.layout_columns(
+                    ui.input_file("tm_pdb1", "PDB 1: upload local", accept=[".pdb"], multiple=False),
+                    ui.input_text("tm_pdb1_id", "PDB 1: or RCSB ID", value="", placeholder="e.g. 2IVT"),
+                    col_widths=[6, 6],
+                ),
+                ui.layout_columns(
+                    ui.input_file("tm_pdb2", "PDB 2: upload local", accept=[".pdb"], multiple=False),
+                    ui.input_text("tm_pdb2_id", "PDB 2: or RCSB ID", value="", placeholder="e.g. 1CRN"),
+                    col_widths=[6, 6],
+                ),
                 ui.layout_columns(
                     ui.input_text("tm_chain1", "Chain 1", value="A"),
                     ui.input_numeric("tm_start1", "Start 1", value=None),
@@ -313,18 +322,15 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.build_rin)
     def _build_rin() -> None:
-        pdb_path: Path | None = None
-        upload = input.rin_upload()
-        if upload:
-            uploaded_path = Path(upload[0]["datapath"])
-            target = controller.workdir / Path(upload[0]["name"]).name
-            target.write_bytes(uploaded_path.read_bytes())
-            pdb_path = target
-        elif controller.rin_path.get() is not None:
+        pdb_path = controller.service.resolve_uploaded_or_remote_pdb(
+            input.rin_upload(),
+            input.rin_pdb_id(),
+        )
+        if pdb_path is None and controller.rin_path.get() is not None:
             pdb_path = Path(controller.rin_path.get())
 
         if pdb_path is None:
-            controller.status.set("Upload a PDB or download AlphaFold first.")
+            controller.status.set("Provide a local PDB upload, an RCSB PDB ID, or download AlphaFold first.")
             return
 
         graph = StructureOps.build_rin_graph(
@@ -348,19 +354,20 @@ def server(input, output, session):
     @reactive.event(input.run_tmalign)
     def _run_tmalign() -> None:
         try:
-            files1 = input.tm_pdb1()
-            files2 = input.tm_pdb2()
-            if not files1 or not files2:
-                controller.tm_report.set("Upload both PDB files first.")
+            f1 = controller.service.resolve_uploaded_or_remote_pdb(
+                input.tm_pdb1(),
+                input.tm_pdb1_id(),
+                target_name="tm_input_1.pdb",
+            )
+            f2 = controller.service.resolve_uploaded_or_remote_pdb(
+                input.tm_pdb2(),
+                input.tm_pdb2_id(),
+                target_name="tm_input_2.pdb",
+            )
+            if f1 is None or f2 is None:
+                controller.tm_report.set("Provide both structures via local upload or RCSB PDB ID.")
                 controller.tm_html.set("")
                 return
-
-            p1 = Path(files1[0]["datapath"])
-            p2 = Path(files2[0]["datapath"])
-            f1 = controller.workdir / Path(files1[0]["name"]).name
-            f2 = controller.workdir / Path(files2[0]["name"]).name
-            f1.write_bytes(p1.read_bytes())
-            f2.write_bytes(p2.read_bytes())
 
             chain1 = (input.tm_chain1() or "A").strip() or "A"
             chain2 = (input.tm_chain2() or "A").strip() or "A"
