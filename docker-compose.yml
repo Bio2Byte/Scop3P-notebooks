@@ -1,9 +1,20 @@
 services:
+  scop3p-suite:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: scop3p-suite
+    image: scop3p/scop3p-suite:dev
+    ports:
+      - "8000:8000"
+
   peptide-mapper:
     platform: linux/amd64
     build:
       context: .
-      dockerfile: docker/Dockerfile.peptide_mapper
+      dockerfile: docker/Dockerfile
+      target: peptide-mapper
     image: scop3p/peptide-mapper:dev
     ports:
       - "8001:8000"
@@ -12,7 +23,8 @@ services:
     platform: linux/amd64
     build:
       context: .
-      dockerfile: docker/Dockerfile.structure_viz
+      dockerfile: docker/Dockerfile
+      target: structure-viz
     image: scop3p/structure-viz:dev
     ports:
       - "8002:8000"
@@ -21,7 +33,8 @@ services:
     platform: linux/amd64
     build:
       context: .
-      dockerfile: docker/Dockerfile.mutation_effect
+      dockerfile: docker/Dockerfile
+      target: mutation-effect
     image: scop3p/mutation-effect:dev
     ports:
       - "8003:8000"

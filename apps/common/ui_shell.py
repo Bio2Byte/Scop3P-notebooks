@@ -43,30 +43,45 @@ def scop3p_footer() -> ui.Tag:
                 ),
             ),
             ui.div(
-                ui.p("Licensed under CC BY 4.0", class_="scop3p-footer-head"),
                 ui.p(
+                    "Licensed under Apache 2.0.", 
+                    class_="scop3p-footer-head"),
+                ui.p(
+                    "You can find data and documentation (in PDF) ",
                     ui.a(
-                        "Data and documentation",
+                        "here.",
                         href="https://iomics.ugent.be/scop3p/documentation",
                         target="_blank",
                     ),
                     class_="scop3p-footer-link",
                 ),
                 ui.p(
+                    "Official documentation of the Scop3P REST API: ",
                     ui.a(
-                        "Scop3P API",
-                        href="https://iomics.ugent.be/scop3p/api",
+                        "Swagger OpenAPI definition.",
+                        href="https://iomics.ugent.be/scop3p/swagger-ui/index.html",
                         target="_blank",
                     ),
                     class_="scop3p-footer-link",
                 ),
                 ui.p(
+                    "For any further questions, feedback or suggestions, please send an email to: ",
                     ui.a(
                         "scop3p.compomics@vib-ugent.be",
                         href="mailto:scop3p.compomics@vib-ugent.be",
                     ),
+                    ", or ",
+                    ui.a(
+                        "bio2byte@vub.be",
+                        href="mailto:bio2byte@vub.be",
+                    ),
+                    ".",
                     class_="scop3p-footer-link",
                 ),
+                ui.p(
+                    "Developed by CompOmics (UGENT) in collaboration with the Bio2Byte Lab (VUB).",
+                    class_="scop3p-footer-head"
+                )
             ),
             class_="scop3p-footer-grid",
         ),
@@ -212,7 +227,6 @@ body {
   padding: 24px 10px 34px;
 }
 .scop3p-footer-grid {
-  max-width: 1600px;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1.4fr 0.8fr;
