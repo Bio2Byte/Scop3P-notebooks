@@ -14,9 +14,9 @@ from apps.structure_viz.app import app as structure_viz_app
 
 
 APP_OPTIONS = {
-    "peptide-mapper": ("Peptide Mapper", peptide_mapper_app),
-    "structure-viz": ("Structure Visualisation", structure_viz_app),
-    "mutation-effect": ("Mutation Effect", mutation_effect_app),
+    "peptide-mapper": ("Peptide Mapper", "fa-solid fa-map-pin", peptide_mapper_app),
+    "structure-viz": ("Structure Visualisation", "fa-solid fa-cube", structure_viz_app),
+    "mutation-effect": ("Mutation Effect", "fa-solid fa-bolt", mutation_effect_app),
 }
 DEFAULT_APP_KEY = "peptide-mapper"
 COOKIE_NAME = "scop3p_app"
@@ -59,12 +59,18 @@ def _logo_data_uri() -> str:
 
 def _selector_navbar(selected_key: str) -> str:
     links = []
-    for key, (label, _) in APP_OPTIONS.items():
+    for key, (label, icon_class, _) in APP_OPTIONS.items():
         active_class = " suite-link-active" if key == selected_key else ""
-        links.append(f'<a class="suite-link{active_class}" href="/?app={key}">{label}</a>')
+        links.append(
+            f'<a class="suite-link{active_class}" href="/?app={key}">'
+            f'<i class="{icon_class}" aria-hidden="true"></i>'
+            f'<span>{label}</span>'
+            f"</a>"
+        )
     logo_src = _logo_data_uri()
 
     return f"""
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <style>
   body {{
     padding-top: 78px !important;
@@ -118,6 +124,9 @@ def _selector_navbar(selected_key: str) -> str:
     gap: 10px;
   }}
   .suite-link {{
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     text-decoration: none;
     color: rgba(255,255,255,0.84);
     padding: 9px 14px;
@@ -130,6 +139,9 @@ def _selector_navbar(selected_key: str) -> str:
     color: #11263c;
     background: #ffffff;
     border-color: #ffffff;
+  }}
+  .suite-link i {{
+    font-size: 0.95rem;
   }}
   @media (max-width: 1000px) {{
     .suite-navbar-inner {{
@@ -178,7 +190,7 @@ def _set_selection_cookie(headers: MutableHeaders, selected_key: str) -> None:
 
 class SingleRootPortal:
     def __init__(self) -> None:
-        self.apps = {key: app for key, (_, app) in APP_OPTIONS.items()}
+        self.apps = {key: app for key, (_, _, app) in APP_OPTIONS.items()}
 
     async def __call__(self, scope, receive, send) -> None:  # noqa: ANN001
         scope_type = scope["type"]

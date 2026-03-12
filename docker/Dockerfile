@@ -7,15 +7,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements-biophysics.txt /app/requirements-biophysics.txt
-COPY requirements-shiny.txt /app/requirements-shiny.txt
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc g++ && rm -rf /var/lib/apt/lists/*
+    build-essential gcc g++ && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install -U pip
 
+COPY requirements-biophysics.txt /app/requirements-biophysics.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install -r /app/requirements-biophysics.txt
 
+COPY requirements-shiny.txt /app/requirements-shiny.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install -r /app/requirements-shiny.txt
 
