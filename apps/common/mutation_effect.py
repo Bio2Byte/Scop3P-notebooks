@@ -11,7 +11,7 @@ from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.plotting import figure
 from bokeh.resources import CDN
 
-from apps.common.services import Scop3PClient
+from common.services import Scop3PClient
 
 try:
     from b2bTools import SingleSeq

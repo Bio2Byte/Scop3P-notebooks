@@ -8,9 +8,9 @@ from urllib.parse import parse_qsl, urlencode
 
 from starlette.datastructures import Headers, MutableHeaders
 
-from apps.mutation_effect.app import app as mutation_effect_app
-from apps.peptide_mapper.app import app as peptide_mapper_app
-from apps.structure_viz.app import app as structure_viz_app
+from mutation_effect.app import app as mutation_effect_app
+from peptide_mapper.app import app as peptide_mapper_app
+from structure_viz.app import app as structure_viz_app
 
 
 APP_OPTIONS = {

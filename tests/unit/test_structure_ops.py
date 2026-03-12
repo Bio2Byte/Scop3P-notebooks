@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from apps.common.structure_viz import StructureVizService
-from apps.common.structure_viz import StructureOps
+from common.structure_viz import StructureVizService
+from common.structure_viz import StructureOps
 
 
 PDB_MINI = """ATOM      1  N   ALA A   1      11.104  13.207   2.100  1.00 10.00           N

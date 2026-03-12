@@ -3,10 +3,10 @@ from __future__ import annotations
 from shiny import App
 from starlette.testclient import TestClient
 
-from apps.mutation_effect.app import app as mutation_effect_app
-from apps.peptide_mapper.app import app as peptide_mapper_app
-from apps.portal.main import app as portal_app
-from apps.structure_viz.app import app as structure_viz_app
+from mutation_effect.app import app as mutation_effect_app
+from peptide_mapper.app import app as peptide_mapper_app
+from portal.main import app as portal_app
+from structure_viz.app import app as structure_viz_app
 
 
 def test_peptide_mapper_app_constructs() -> None:

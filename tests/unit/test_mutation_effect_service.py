@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from apps.common.mutation_effect import (
+from common.mutation_effect import (
     Mutation,
     MutationEffectInference,
     MutationEffectService,

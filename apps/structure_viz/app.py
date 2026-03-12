@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from apps.common.structure_viz import StructureOps, StructureViewerBuilder, StructureVizService  # noqa: E402
-from apps.common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer  # noqa: E402
+from common.structure_viz import StructureOps, StructureViewerBuilder, StructureVizService  # noqa: E402
+from common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer  # noqa: E402
 
 
 class StructureVizController:

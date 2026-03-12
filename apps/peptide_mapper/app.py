@@ -10,11 +10,11 @@ if str(ROOT) not in sys.path:
 import pandas as pd
 from shiny import App, reactive, render, ui
 
-from apps.common.models import PeptideSelectionMode
-from apps.common.peptide_mapper import PeptideMapperService, map_selection
-from apps.common.services import AlphaFoldService, Scop3PClient
-from apps.common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer
-from apps.common.viewer import NGLViewerBuilder
+from common.models import PeptideSelectionMode
+from common.peptide_mapper import PeptideMapperService, map_selection
+from common.services import AlphaFoldService, Scop3PClient
+from common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer
+from common.viewer import NGLViewerBuilder
 
 
 class PeptideMapperController:

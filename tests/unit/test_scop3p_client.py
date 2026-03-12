@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from apps.common.services import Scop3PClient
+from common.services import Scop3PClient
 
 
 class _DummyResponse:

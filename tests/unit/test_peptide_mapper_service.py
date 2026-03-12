@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from apps.common.models import PeptideSelectionMode
-from apps.common.peptide_mapper import PeptideMapperService, map_selection, positions_to_ranges
+from common.models import PeptideSelectionMode
+from common.peptide_mapper import PeptideMapperService, map_selection, positions_to_ranges
 
 
 def _sample_df() -> pd.DataFrame:
