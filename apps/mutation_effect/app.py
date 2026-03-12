@@ -14,7 +14,7 @@ from apps.common.mutation_effect import (  # noqa: E402
     MutationEffectService,
     MutationEffectViews,
 )
-from apps.common.ui_shell import scop3p_card, scop3p_shell  # noqa: E402
+from apps.common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer  # noqa: E402
 
 
 service = MutationEffectService()
@@ -263,5 +263,8 @@ def server(input, output, session):
             ]
         )
 
+content_ui = ui.div(
+    app_ui, scop3p_footer()
+)
 
-app = App(app_ui, server)
+app = App(content_ui, server)

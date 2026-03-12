@@ -1,5 +1,8 @@
 from __future__ import annotations
+
+import base64
 from http.cookies import SimpleCookie
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode
 
@@ -17,6 +20,7 @@ APP_OPTIONS = {
 }
 DEFAULT_APP_KEY = "peptide-mapper"
 COOKIE_NAME = "scop3p_app"
+_LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "images" / "scop3p-nobg.png"
 
 
 def _normalize_app_key(value: str | None) -> str:
@@ -48,11 +52,17 @@ def _strip_selector_query(scope: dict[str, Any]) -> dict[str, Any]:
     return new_scope
 
 
+def _logo_data_uri() -> str:
+    payload = base64.b64encode(_LOGO_PATH.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{payload}"
+
+
 def _selector_navbar(selected_key: str) -> str:
     links = []
     for key, (label, _) in APP_OPTIONS.items():
         active_class = " suite-link-active" if key == selected_key else ""
         links.append(f'<a class="suite-link{active_class}" href="/?app={key}">{label}</a>')
+    logo_src = _logo_data_uri()
 
     return f"""
 <style>
@@ -80,8 +90,19 @@ def _selector_navbar(selected_key: str) -> str:
   }}
   .suite-brand {{
     display: flex;
+    align-items: center;
+    gap: 12px;
+  }}
+  .suite-brand-copy {{
+    display: flex;
     flex-direction: column;
     gap: 2px;
+  }}
+  .suite-brand-logo {{
+    display: block;
+    height: 42px;
+    width: auto;
+    object-fit: contain;
   }}
   .suite-brand strong {{
     font-size: 1.1rem;
@@ -123,8 +144,11 @@ def _selector_navbar(selected_key: str) -> str:
 <div class="suite-navbar">
   <div class="suite-navbar-inner">
     <div class="suite-brand">
-      <strong>Scop3P-Toolkit</strong>
-      <span>Tools for exploring and extending Scop3P</span>
+      <img class="suite-brand-logo" src="{logo_src}" alt="Scop3P logo" />
+      <div class="suite-brand-copy">
+        <strong>Scop3P-Toolkit</strong>
+        <span>Tools for exploring and extending Scop3P</span>
+      </div>
     </div>
     <nav class="suite-links" aria-label="Tools for exploring and extending Scop3P">
       {''.join(links)}

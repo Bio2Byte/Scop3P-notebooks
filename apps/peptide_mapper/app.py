@@ -13,7 +13,7 @@ from shiny import App, reactive, render, ui
 from apps.common.models import PeptideSelectionMode
 from apps.common.peptide_mapper import PeptideMapperService, map_selection
 from apps.common.services import AlphaFoldService, Scop3PClient
-from apps.common.ui_shell import scop3p_card, scop3p_shell
+from apps.common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer
 from apps.common.viewer import NGLViewerBuilder
 
 
@@ -117,7 +117,7 @@ app_ui = scop3p_shell(
         scop3p_card(
             "Controls",
             ui.div(
-                ui.input_text("accession", "ACC_ID", value="", placeholder="e.g. O00571"),
+                ui.input_text("accession", "ACC_ID (UniProt accession number)", value="", placeholder="e.g. O00571"),
                 ui.input_action_button("load_btn", "Load", class_="btn-primary"),
                 ui.div(
                     ui.input_radio_buttons(
@@ -339,4 +339,8 @@ def server(input, output, session):
         return ui.HTML(payload)
 
 
-app = App(app_ui, server)
+content_ui = ui.div(
+    app_ui, scop3p_footer()
+)
+
+app = App(content_ui, server)

@@ -1,6 +1,47 @@
 from __future__ import annotations
 
+import base64
+from pathlib import Path
+
 from shiny import ui
+
+
+_IMAGE_DIR = Path(__file__).resolve().parents[1] / "assets" / "images"
+_FOOTER_LOGOS = [
+    ("CompOmics", "compomics.png"),
+    ("Bio2Byte", "bio2byte.png"),
+    ("IB2", "IB2.png"),
+    ("VIB", "vib.png"),
+    ("UGent", "ugent.png"),
+    ("VUB", "vub.png"),
+    ("ELIXIR Belgium", "elixir-belgium.png"),
+]
+
+
+def _image_data_uri(filename: str) -> str | None:
+    path = _IMAGE_DIR / filename
+    if not path.exists():
+        return None
+    payload = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{payload}"
+
+
+def _footer_logo_tags() -> list[ui.Tag]:
+    tags: list[ui.Tag] = []
+    for label, filename in _FOOTER_LOGOS:
+        src = _image_data_uri(filename)
+        if src is None:
+            tags.append(ui.span(label, class_="scop3p-logo-fallback", title=f"Missing asset: {filename}"))
+            continue
+        tags.append(
+            ui.tags.img(
+                src=src,
+                alt=label,
+                title=label,
+                class_="scop3p-footer-logo",
+            )
+        )
+    return tags
 
 
 def scop3p_shell(app_name: str, intro: str, *children: ui.TagChild) -> ui.Tag:
@@ -8,7 +49,7 @@ def scop3p_shell(app_name: str, intro: str, *children: ui.TagChild) -> ui.Tag:
         ui.tags.style(_SCOP3P_CSS),
         ui.div(
             ui.div(
-                ui.h1("Scop3P", class_="scop3p-eyebrow"),
+                ui.h1("Scop3P-Toolkit", class_="scop3p-eyebrow"),
                 ui.h2(app_name, class_="scop3p-title"),
                 ui.p(intro, class_="scop3p-intro"),
                 class_="scop3p-hero-copy",
@@ -16,8 +57,7 @@ def scop3p_shell(app_name: str, intro: str, *children: ui.TagChild) -> ui.Tag:
             class_="scop3p-hero",
         ),
         ui.div(*children, class_="scop3p-shell"),
-        scop3p_footer(),
-        title=f"Scop3P: {app_name}",
+        title=f"Scop3P-Toolkit: {app_name}",
     )
 
 
@@ -41,11 +81,13 @@ def scop3p_footer() -> ui.Tag:
                     "Protein phosphorylation context across sequence, structure, proteomics, and variant evidence.",
                     class_="scop3p-footer-copy",
                 ),
-            ),
-            ui.div(
+                ui.div(*_footer_logo_tags(), class_="scop3p-footer-logos"),
                 ui.p(
                     "Licensed under Apache 2.0.", 
-                    class_="scop3p-footer-head"),
+                    class_="scop3p-footer-head"
+                ),
+            ),
+            ui.div(
                 ui.p(
                     "You can find data and documentation (in PDF) ",
                     ui.a(
@@ -224,16 +266,18 @@ body {
 }
 .scop3p-footer {
   margin-top: 28px;
-  padding: 24px 10px 34px;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding: 24px 10px 0px 10px;
 }
 .scop3p-footer-grid {
-  margin: 0 auto;
+  max-width: 100%;
   display: grid;
   grid-template-columns: 1.4fr 0.8fr;
   gap: 18px;
   background: rgba(16, 38, 60, 0.96);
   color: #f7fafc;
-  border-radius: 18px;
   padding: 20px 22px;
   box-shadow: 0 20px 42px rgba(16, 38, 60, 0.24);
 }
@@ -245,6 +289,34 @@ body {
 .scop3p-footer-link {
   margin: 0 0 8px;
   color: rgba(247,250,252,0.82);
+}
+.scop3p-footer-logos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+  margin-bottom: 24px;
+}
+.scop3p-footer-logo {
+  height: 60px;
+  width: auto;
+  max-width: 150px;
+  object-fit: contain;
+  opacity: 0.92;
+}
+.scop3p-logo-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 999px;
+  color: rgba(247,250,252,0.82);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 .scop3p-footer a {
   color: #87d7ff;
