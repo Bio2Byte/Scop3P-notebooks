@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: scop3p-toolkit
-    image: scop3p/scop3p-toolkit:dev
+    image: bio2byte/scop3p-toolkit:0.1.0
     ports:
       - "8000:8000"
 
@@ -15,7 +15,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: peptide-mapper
-    image: scop3p/peptide-mapper:dev
+    image: bio2byte/peptide-mapper:0.1.0
     ports:
       - "8001:8000"
 
@@ -25,7 +25,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: structure-viz
-    image: scop3p/structure-viz:dev
+    image: bio2byte/structure-viz:0.1.0
     ports:
       - "8002:8000"
 
@@ -35,6 +35,6 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: mutation-effect
-    image: scop3p/mutation-effect:dev
+    image: bio2byte/mutation-effect:0.1.0
     ports:
       - "8003:8000"
