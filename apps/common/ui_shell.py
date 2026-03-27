@@ -60,6 +60,7 @@ def scop3p_shell(app_name: str, intro: str, *children: ui.TagChild) -> ui.Tag:
         ),
         ui.div(*children, class_="scop3p-shell"),
         title=f"Scop3P-Toolkit: {app_name}",
+        style="min-height: 100dvh;"
     )
 
 
