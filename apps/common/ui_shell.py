@@ -8,13 +8,14 @@ from shiny import ui
 
 _IMAGE_DIR = Path(__file__).resolve().parents[1] / "assets" / "images"
 _FOOTER_LOGOS = [
-    ("CompOmics", "compomics.png"),
-    ("Bio2Byte", "bio2byte.png"),
-    ("IB2", "IB2.png"),
-    ("VIB", "vib.png"),
-    ("UGent", "ugent.png"),
-    ("VUB", "vub.png"),
-    ("ELIXIR Belgium", "elixir-belgium.png"),
+    ("CompOmics", "compomics.png", "60px"),
+    ("Bio2Byte", "bio2byte.png", "60px"),
+    ("IB2", "IB2.png", "60px"),
+    ("VIB Data Core", "vib_Data_Core.png", "120px"),
+    ("VIB", "vib.png", "60px"),
+    ("UGent", "ugent.png", "60px"),
+    ("VUB", "vub.png", "60px"),
+    ("ELIXIR Belgium", "elixir-belgium.png", "60px"),
 ]
 
 
@@ -28,7 +29,7 @@ def _image_data_uri(filename: str) -> str | None:
 
 def _footer_logo_tags() -> list[ui.Tag]:
     tags: list[ui.Tag] = []
-    for label, filename in _FOOTER_LOGOS:
+    for label, filename, height in _FOOTER_LOGOS:
         src = _image_data_uri(filename)
         if src is None:
             tags.append(ui.span(label, class_="scop3p-logo-fallback", title=f"Missing asset: {filename}"))
@@ -39,6 +40,7 @@ def _footer_logo_tags() -> list[ui.Tag]:
                 alt=label,
                 title=label,
                 class_="scop3p-footer-logo",
+                style=f"height: {height}",
             )
         )
     return tags
@@ -76,7 +78,7 @@ def scop3p_footer() -> ui.Tag:
     return ui.tags.footer(
         ui.div(
             ui.div(
-                ui.h5("Scop3P", class_="scop3p-footer-head"),
+                ui.h5("Scop3P-Toolkit", class_="scop3p-footer-head"),
                 ui.p(
                     "Protein phosphorylation context across sequence, structure, proteomics, and variant evidence.",
                     class_="scop3p-footer-copy",
@@ -121,7 +123,16 @@ def scop3p_footer() -> ui.Tag:
                     class_="scop3p-footer-link",
                 ),
                 ui.p(
-                    "Developed by CompOmics (UGENT) in collaboration with the Bio2Byte Lab (VUB).",
+                    "Scop3P is part of the ELIXIR Belgium infrastructure as a Core Service since 2020: ",
+                    ui.a(
+                        "Learn more",
+                        href="https://www.elixir-belgium.org/services/scop3p/"
+                    ),
+                    ".",
+                    class_="scop3p-footer-link",
+                ),
+                ui.p(
+                    "Scop3P Toolkit has been developed in Belgium by CompOmics (UGENT) in collaboration with the Bio2Byte Lab (VUB) and the VIB Data Core team (VIB).",
                     class_="scop3p-footer-head"
                 )
             ),
