@@ -35,7 +35,7 @@ Defined in [`docker-compose.yml`](/Users/adrian/workspace/vub/Scop3P-notebooks/d
 - `peptide-mapper` -> host port `8001`
 - `structure-viz` -> host port `8002`
 - `mutation-effect` -> host port `8003`
-- `scop3p-suite` -> host port `8000`
+- `scop3p-toolkit` -> host port `8000`
 
 ## Run Independently
 
@@ -71,40 +71,40 @@ docker compose stop mutation-effect
 
 ## Run All-In-One Mode
 
-Build the single-container suite:
+Build the single-container toolkit:
 
 ```bash
-docker compose build scop3p-suite
+docker compose build scop3p-toolkit
 ```
 
-Start the suite:
+Start the toolkit:
 
 ```bash
-docker compose up -d scop3p-suite
+docker compose up -d scop3p-toolkit
 ```
 
 Open in browser:
 
-- Suite root: `http://localhost:8000`
+- toolkit root: `http://localhost:8000`
 
-The suite exposes a selector navbar at the root URL. You can also preselect an app with:
+The toolkit exposes a selector navbar at the root URL. You can also preselect an app with:
 
 - `http://localhost:8000/?app=peptide-mapper`
 - `http://localhost:8000/?app=structure-viz`
 - `http://localhost:8000/?app=mutation-effect`
 
-Stop the suite:
+Stop the toolkit:
 
 ```bash
-docker compose stop scop3p-suite
+docker compose stop scop3p-toolkit
 ```
 
 ## Run Everything
 
-If you want all independent apps plus the suite at the same time:
+If you want all independent apps plus the toolkit at the same time:
 
 ```bash
-docker compose up -d peptide-mapper structure-viz mutation-effect scop3p-suite
+docker compose up -d peptide-mapper structure-viz mutation-effect scop3p-toolkit
 ```
 
 Stop all services:
@@ -121,5 +121,5 @@ Follow logs for one service:
 docker compose logs -f peptide-mapper
 docker compose logs -f structure-viz
 docker compose logs -f mutation-effect
-docker compose logs -f scop3p-suite
+docker compose logs -f scop3p-toolkit
 ```

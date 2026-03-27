@@ -47,5 +47,5 @@ CMD ["shiny", "run", "--host", "0.0.0.0", "--port", "8000", "/apps/structure_viz
 FROM runtime AS mutation-effect
 CMD ["shiny", "run", "--host", "0.0.0.0", "--port", "8000", "/apps/mutation_effect/app.py"]
 
-FROM runtime AS scop3p-suite
+FROM runtime AS scop3p-toolkit
 CMD ["python", "-m", "uvicorn", "portal.main:app", "--host", "0.0.0.0", "--port", "8000"]

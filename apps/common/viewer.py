@@ -30,7 +30,7 @@ class NGLViewerBuilder:
 <html>
 <head>
   <meta charset=\"utf-8\" />
-  <title>{safe_accession} styled NGL session</title>
+  <title>Scop3P-Toolkit: Peptide Mapper for {safe_accession}</title>
   <style>
     body {{ margin: 0; font-family: sans-serif; }}
     #ngl-root {{ position: relative; width: 100%; height: 700px; }}

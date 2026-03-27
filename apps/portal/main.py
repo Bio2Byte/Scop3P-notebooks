@@ -60,9 +60,9 @@ def _logo_data_uri() -> str:
 def _selector_navbar(selected_key: str) -> str:
     links = []
     for key, (label, icon_class, _) in APP_OPTIONS.items():
-        active_class = " suite-link-active" if key == selected_key else ""
+        active_class = " toolkit-link-active" if key == selected_key else ""
         links.append(
-            f'<a class="suite-link{active_class}" href="/?app={key}">'
+            f'<a class="toolkit-link{active_class}" href="/?app={key}">'
             f'<i class="{icon_class}" aria-hidden="true"></i>'
             f'<span>{label}</span>'
             f"</a>"
@@ -75,7 +75,7 @@ def _selector_navbar(selected_key: str) -> str:
   body {{
     padding-top: 78px !important;
   }}
-  .suite-navbar {{
+  .toolkit-navbar {{
     position: fixed;
     inset: 0 0 auto 0;
     z-index: 9999;
@@ -85,7 +85,7 @@ def _selector_navbar(selected_key: str) -> str:
     backdrop-filter: blur(10px);
     box-shadow: 0 10px 24px rgba(16, 38, 60, 0.16);
   }}
-  .suite-navbar-inner {{
+  .toolkit-navbar-inner {{
     max-width: 1800px;
     margin: 0 auto;
     padding: 14px 18px;
@@ -94,36 +94,36 @@ def _selector_navbar(selected_key: str) -> str:
     justify-content: space-between;
     gap: 18px;
   }}
-  .suite-brand {{
+  .toolkit-brand {{
     display: flex;
     align-items: center;
     gap: 12px;
   }}
-  .suite-brand-copy {{
+  .toolkit-brand-copy {{
     display: flex;
     flex-direction: column;
     gap: 2px;
   }}
-  .suite-brand-logo {{
+  .toolkit-brand-logo {{
     display: block;
     height: 42px;
     width: auto;
     object-fit: contain;
   }}
-  .suite-brand strong {{
+  .toolkit-brand strong {{
     font-size: 1.1rem;
     letter-spacing: 0.02em;
   }}
-  .suite-brand span {{
+  .toolkit-brand span {{
     color: rgba(255,255,255,0.72);
     font-size: 0.88rem;
   }}
-  .suite-links {{
+  .toolkit-links {{
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
   }}
-  .suite-link {{
+  .toolkit-link {{
     display: inline-flex;
     align-items: center;
     gap: 10px;
@@ -135,16 +135,16 @@ def _selector_navbar(selected_key: str) -> str:
     background: rgba(255,255,255,0.06);
     font-weight: 600;
   }}
-  .suite-link-active {{
+  .toolkit-link-active {{
     color: #11263c;
     background: #ffffff;
     border-color: #ffffff;
   }}
-  .suite-link i {{
+  .toolkit-link i {{
     font-size: 0.95rem;
   }}
   @media (max-width: 1000px) {{
-    .suite-navbar-inner {{
+    .toolkit-navbar-inner {{
       flex-direction: column;
       align-items: flex-start;
     }}
@@ -153,16 +153,16 @@ def _selector_navbar(selected_key: str) -> str:
     }}
   }}
 </style>
-<div class="suite-navbar">
-  <div class="suite-navbar-inner">
-    <div class="suite-brand">
-      <img class="suite-brand-logo" src="{logo_src}" alt="Scop3P logo" />
-      <div class="suite-brand-copy">
+<div class="toolkit-navbar">
+  <div class="toolkit-navbar-inner">
+    <div class="toolkit-brand">
+      <img class="toolkit-brand-logo" src="{logo_src}" alt="Scop3P logo" />
+      <div class="toolkit-brand-copy">
         <strong>Scop3P-Toolkit</strong>
         <span>Tools for exploring and extending Scop3P</span>
       </div>
     </div>
-    <nav class="suite-links" aria-label="Tools for exploring and extending Scop3P">
+    <nav class="toolkit-links" aria-label="Tools for exploring and extending Scop3P">
       {''.join(links)}
     </nav>
   </div>

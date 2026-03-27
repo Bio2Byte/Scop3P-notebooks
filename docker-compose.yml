@@ -1,11 +1,11 @@
 services:
-  scop3p-suite:
+  scop3p-toolkit:
     platform: linux/amd64
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: scop3p-suite
-    image: scop3p/scop3p-suite:dev
+      target: scop3p-toolkit
+    image: scop3p/scop3p-toolkit:dev
     ports:
       - "8000:8000"
 
