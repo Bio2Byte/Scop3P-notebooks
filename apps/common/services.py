@@ -5,7 +5,7 @@ from urllib.error import HTTPError, URLError
 import urllib.request
 
 import pandas as pd
-import requests
+from scop3p_api_client.api import Scop3pRestApi
 
 
 class Scop3PClient:
@@ -14,13 +14,10 @@ class Scop3PClient:
     def __init__(self, base_url: str = "https://iomics.ugent.be/scop3p/api", timeout: int = 30) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.api = Scop3pRestApi(default_timeout=timeout)
 
     def fetch_peptides_modifications(self, accession: str) -> pd.DataFrame:
-        url = f"{self.base_url}/get-peptides-modifications"
-        response = requests.get(url, params={"accession": accession}, timeout=self.timeout)
-        response.raise_for_status()
-        payload = response.json()
-
+        payload = self.api.fetch_peptides(accession)
         df = pd.DataFrame(payload.get("peptides", []))
         if df.empty:
             return df
@@ -35,6 +32,34 @@ class Scop3PClient:
 
         df["label"] = df.apply(self._format_label, axis=1)
         return df
+
+    def fetch_modifications(self, accession: str) -> pd.DataFrame:
+        payload = self.api.fetch_modifications(accession)
+        if isinstance(payload, list):
+            payload = payload[0] if payload else {}
+
+        dataframe = pd.DataFrame(payload.get("modifications", []))
+        if dataframe.empty:
+            return dataframe
+
+        keep = [
+            column
+            for column in [
+                "position",
+                "residue",
+                "name",
+                "source",
+                "evidence",
+                "reference",
+                "functionalScore",
+                "specificSinglyPhosphorylated",
+            ]
+            if column in dataframe.columns
+        ]
+        dataframe = dataframe[keep].copy()
+        if "position" in dataframe.columns:
+            dataframe["position"] = pd.to_numeric(dataframe["position"], errors="coerce").astype("Int64")
+        return dataframe
 
     @staticmethod
     def _format_label(row: pd.Series) -> str:

@@ -14,10 +14,12 @@ from common.mutation_effect import (  # noqa: E402
     MutationEffectService,
     MutationEffectViews,
 )
+from common.logging_utils import get_logger  # noqa: E402
 from common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer  # noqa: E402
 
 
 service = MutationEffectService()
+LOGGER = get_logger("scop3p.mutation_effect")
 
 
 def _bokeh_iframe(html_doc: str) -> ui.Tag:
@@ -117,6 +119,7 @@ def server(input, output, session):
     def _run_wt() -> None:
         try:
             accession_value = input.accession().strip()
+            LOGGER.info("run_wt requested accession=%s", accession_value or "-", extra={"event": "run_wt"})
             status_text.set("Fetching UniProt sequence and Scop3P PTMs...")
             sequence_value = service.fetch_uniprot_sequence(accession_value)
             mods = service.fetch_scop3p_modifications(accession_value)
@@ -150,12 +153,23 @@ def server(input, output, session):
             )
             status_text.set(f"WT prediction ready. PTMs: {0 if mods is None else len(mods)}.")
         except Exception as error:
+            LOGGER.exception("run_wt failed accession=%s", input.accession().strip() or "-", extra={"event": "run_wt"})
             status_text.set(f"WT error: {error}")
+            return
+        LOGGER.info(
+            "run_wt completed accession=%s seq_len=%s ptms=%s rows=%s",
+            accession_value,
+            len(sequence_value),
+            0 if mods is None else len(mods),
+            len(dataframe),
+            extra={"event": "run_wt"},
+        )
 
     @reactive.effect
     @reactive.event(input.run_mut)
     def _run_mut() -> None:
         try:
+            LOGGER.info("run_mut requested positions=%s aas=%s", input.positions(), input.mut_aas(), extra={"event": "run_mut"})
             if wt_df.get() is None or not sequence.get():
                 raise ValueError("Run WT prediction first.")
 
@@ -189,12 +203,21 @@ def server(input, output, session):
             inf_sections.set([])
             status_text.set("Mutant prediction ready.")
         except Exception as error:
+            LOGGER.exception("run_mut failed", extra={"event": "run_mut"})
             status_text.set(f"Mutant error: {error}")
+            return
+        LOGGER.info(
+            "run_mut completed mutations=%s rows=%s",
+            len(parsed_mutations),
+            len(dataframe),
+            extra={"event": "run_mut"},
+        )
 
     @reactive.effect
     @reactive.event(input.run_inf)
     def _run_inf() -> None:
         try:
+            LOGGER.info("run_inf requested mutations=%s", len(mutations.get()), extra={"event": "run_inf"})
             if wt_df.get() is None or mut_df.get() is None:
                 raise ValueError("Run WT prediction and Mutant prediction first.")
 
@@ -223,7 +246,10 @@ def server(input, output, session):
             inf_sections.set(sections)
             status_text.set("Inference ready.")
         except Exception as error:
+            LOGGER.exception("run_inf failed", extra={"event": "run_inf"})
             status_text.set(f"Inference error: {error}")
+            return
+        LOGGER.info("run_inf completed sections=%s", len(sections), extra={"event": "run_inf"})
 
     @output
     @render.ui

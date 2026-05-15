@@ -60,34 +60,11 @@ class MutationEffectService:
         return sequence
 
     def fetch_scop3p_modifications(self, accession: str) -> pd.DataFrame:
-        response = requests.get(
-            f"{self.scop3p_client.base_url}/modifications",
-            params={"accession": accession},
-            headers={"accept": "application/json"},
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        if isinstance(payload, list):
-            payload = payload[0] if payload else {}
-
-        dataframe = pd.DataFrame(payload.get("modifications", []))
+        dataframe = self.scop3p_client.fetch_modifications(accession)
         if dataframe.empty:
             return dataframe
 
-        keep = [
-            column
-            for column in [
-                "position",
-                "residue",
-                "name",
-                "source",
-                "evidence",
-                "reference",
-                "functionalScore",
-            ]
-            if column in dataframe.columns
-        ]
+        keep = [column for column in dataframe.columns if column != "specificSinglyPhosphorylated"]
         dataframe = dataframe[keep].copy()
         dataframe["position"] = pd.to_numeric(dataframe["position"], errors="coerce")
         dataframe = dataframe.dropna(subset=["position"])

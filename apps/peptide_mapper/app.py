@@ -10,11 +10,15 @@ if str(ROOT) not in sys.path:
 import pandas as pd
 from shiny import App, reactive, render, ui
 
+from common.logging_utils import get_logger
 from common.models import PeptideSelectionMode
 from common.peptide_mapper import PeptideMapperService, map_selection
 from common.services import AlphaFoldService, Scop3PClient
 from common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer
 from common.viewer import NGLViewerBuilder
+
+
+LOGGER = get_logger("scop3p.peptide_mapper")
 
 
 class PeptideMapperController:
@@ -180,6 +184,7 @@ def server(input, output, session):
     @reactive.event(input.load_btn)
     def _load_data() -> None:
         accession = input.accession().strip()
+        LOGGER.info("load requested accession=%s", accession or "-", extra={"event": "load_btn"})
         if not accession:
             controller.status_text.set("Enter an accession (e.g., O00571), then click Load.")
             return
@@ -187,6 +192,7 @@ def server(input, output, session):
         try:
             dataframe = controller.client.fetch_peptides_modifications(accession)
         except Exception as error:
+            LOGGER.exception("load failed accession=%s", accession, extra={"event": "load_btn"})
             controller.status_text.set(f"Scop3P API error: {error}")
             controller.dataframe.set(pd.DataFrame())
             controller.filtered_dataframe.set(pd.DataFrame())
@@ -207,6 +213,13 @@ def server(input, output, session):
         options = PeptideMapperService.build_options(dataframe, mode)
         ui.update_selectize("peptides", choices=_as_selectize_choices(options), selected=[])
         controller.status_text.set(f"Loaded {len(dataframe)} peptide-mod rows for {accession}.")
+        LOGGER.info(
+            "load completed accession=%s rows=%s mode=%s",
+            accession,
+            len(dataframe),
+            mode.value,
+            extra={"event": "load_btn"},
+        )
 
     @reactive.effect
     def _update_filter_and_choices() -> None:
@@ -225,11 +238,20 @@ def server(input, output, session):
         restored = [value for value in selected if value in valid_values]
 
         ui.update_selectize("peptides", choices=_as_selectize_choices(options), selected=restored)
+        LOGGER.info(
+            "filter updated query=%r filtered_rows=%s options=%s restored=%s",
+            input.search(),
+            len(filtered),
+            len(options),
+            len(restored),
+            extra={"event": "filter_update"},
+        )
 
     @reactive.effect
     @reactive.event(input.map_all)
     def _map_all() -> None:
         filtered = controller.filtered_dataframe.get()
+        LOGGER.info("map_all requested", extra={"event": "map_all"})
         if filtered is None or filtered.empty:
             controller.status_text.set("No filtered rows available. Load data first.")
             return
@@ -238,6 +260,7 @@ def server(input, output, session):
         options = PeptideMapperService.build_options(filtered, mode)
         values = [value for _, value in options]
         ui.update_selectize("peptides", selected=values)
+        LOGGER.info("map_all selected_count=%s", len(values), extra={"event": "map_all"})
 
     @reactive.effect
     @reactive.event(input.peptides, input.show_mods, input.mods_scope)
@@ -247,6 +270,14 @@ def server(input, output, session):
             return
 
         accession = input.accession().strip()
+        LOGGER.info(
+            "render requested accession=%s selected=%s show_mods=%s scope=%s",
+            accession or "-",
+            len(selected_values),
+            input.show_mods(),
+            input.mods_scope(),
+            extra={"event": "render_selection"},
+        )
         if not accession:
             controller.status_text.set("Enter an accession and click Load first.")
             return
@@ -260,6 +291,7 @@ def server(input, output, session):
         try:
             pdb_path = controller.af_service.download_pdb(accession)
         except Exception as error:
+            LOGGER.exception("alphafold download failed accession=%s", accession, extra={"event": "render_selection"})
             controller.status_text.set(f"AlphaFold download error: {error}")
             return
 
@@ -272,6 +304,7 @@ def server(input, output, session):
                 mods_scope=input.mods_scope(),
             )
         except Exception as error:
+            LOGGER.exception("selection mapping failed accession=%s", accession, extra={"event": "render_selection"})
             controller.status_text.set(f"Selection mapping error: {error}")
             return
 
@@ -306,11 +339,21 @@ def server(input, output, session):
                 ]
             )
         )
+        LOGGER.info(
+            "render completed accession=%s pdb=%s ranges=%s intersection=%s mods=%s",
+            accession,
+            pdb_path,
+            len(union_ranges),
+            len(intersection_positions),
+            len(set(modification_positions)),
+            extra={"event": "render_selection"},
+        )
 
     @reactive.effect
     @reactive.event(input.export_html)
     def _export_html() -> None:
         accession = input.accession().strip()
+        LOGGER.info("export requested accession=%s", accession or "-", extra={"event": "export_html"})
         if not accession:
             controller.status_text.set("Enter an accession first.")
             return
@@ -322,6 +365,7 @@ def server(input, output, session):
         export_path = Path("exports") / f"{accession}_styled_session.html"
         NGLViewerBuilder.export_html(export_path, controller.viewer_html.get())
         controller.status_text.set(f"Exported styled HTML to: {export_path.resolve()}")
+        LOGGER.info("export completed path=%s", export_path.resolve(), extra={"event": "export_html"})
 
     @render.text
     def status() -> str:

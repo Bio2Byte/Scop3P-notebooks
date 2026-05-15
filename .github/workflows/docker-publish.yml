@@ -15,7 +15,7 @@ env:
 
 jobs:
   test:
-    name: Pytest smoke checks
+    name: Pytest suite
     runs-on: ubuntu-latest
 
     steps:
@@ -34,8 +34,8 @@ jobs:
           python -m pip install -r requirements-shiny.txt
           python -m pip install pytest
 
-      - name: Run smoke tests
-        run: pytest tests/integration/test_app_smoke.py
+      - name: Run tests
+        run: pytest tests/unit tests/integration
 
   docker:
     name: Build and publish Docker image
