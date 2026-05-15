@@ -9,7 +9,7 @@ LABEL org.opencontainers.image.title="Scop3P-Toolkit" \
     org.opencontainers.image.description="Scop3P-Toolkit: Tools for exploring and extending Scop3P" \
     org.opencontainers.image.url="https://github.com/Bio2Byte/Scop3P-notebooks" \
     org.opencontainers.image.source="https://github.com/Bio2Byte/Scop3P-notebooks" \
-    org.opencontainers.image.licenses="Apache 2.0" \
+    org.opencontainers.image.licenses="Apache-2.0" \
     org.opencontainers.image.version="${VERSION}" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.created="${BUILD_DATE}"
@@ -21,7 +21,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /apps
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc g++ && \
+    build-essential gcc g++ 't-coffee' hmmer && \
     rm -rf /var/lib/apt/lists/* && \
     pip install -U pip
 

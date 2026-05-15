@@ -1,6 +1,48 @@
 # Scop3P-notebooks
 Jupyter Notebook examples of Scop3P REST API services.
 
+## Published container
+
+This repository publishes the Galaxy-facing `bio2byte/scop3p-toolkit` container. The image packages the single-container portal exposed on port `8000` and is the intended entrypoint for a UseGalaxy interactive tool.
+
+- Docker image: `bio2byte/scop3p-toolkit`
+- Dockerfile target: `scop3p-toolkit`
+- App-specific documentation: [`apps/README.md`](/Users/adrian/workspace/vub/Scop3P-notebooks/apps/README.md)
+
+## Build and run the toolkit image
+
+Build the published image locally:
+
+```bash
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker build \
+  -f docker/Dockerfile \
+  -t bio2byte/scop3p-toolkit:local \
+  .
+```
+
+Run it locally:
+
+```bash
+docker run --rm -p 8000:8000 bio2byte/scop3p-toolkit:local
+```
+
+Then open `http://localhost:8000` to access the toolkit selector and launch the bundled interactive apps.
+
+## Continuous delivery to Docker Hub
+
+GitHub Actions publishes the `bio2byte/scop3p-toolkit` image for default-branch pushes and version tags. Pull requests run the same build in validation mode without pushing.
+
+Required repository secrets:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Optional repository variable:
+
+- `DOCKERHUB_NAMESPACE`
+
+If `DOCKERHUB_NAMESPACE` is not set, the workflow publishes to the same namespace as `DOCKERHUB_USERNAME`.
+
 ## About Scop3P[^1]
 
 **Scop3P: A Comprehensive Resource of Human Phosphosites within Their Full Context**
