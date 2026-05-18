@@ -74,7 +74,7 @@ def test_normalize_b2b_prediction_uses_expected_columns_and_types(tmp_path: Path
         *(f"{metric}_normalized" for metric in B2B_METRIC_COLUMNS),
     ]
     assert dataframe["Position"].tolist() == [1, 2]
-    assert dataframe["Amino acid"].tolist() == ["A", "C"]
+    assert dataframe["Amino acid"].tolist() == ["AC", "AC"]
     assert dataframe.loc[0, "backbone"] == 0.1
     assert dataframe.loc[1, "disoMine"] == 1.6
     assert dataframe.loc[0, "backbone_normalized"] == 0.0
@@ -97,7 +97,7 @@ def test_normalize_b2b_prediction_tolerates_missing_and_uneven_fields(tmp_path: 
     )
 
     assert dataframe["Position"].tolist() == [1, 2, 3]
-    assert dataframe["Amino acid"].tolist() == ["A", "C", "D"]
+    assert dataframe["Amino acid"].tolist() == ["ACD", "ACD", "ACD"]
     assert dataframe.loc[0, "sidechain"] == 0.4
     assert pd.isna(dataframe.loc[1, "sidechain"])
     assert pd.isna(dataframe.loc[2, "sidechain"])
