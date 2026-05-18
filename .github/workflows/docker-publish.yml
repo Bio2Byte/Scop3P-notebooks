@@ -55,7 +55,13 @@ jobs:
         id: vars
         shell: bash
         run: |
-          namespace="${{ vars.DOCKERHUB_NAMESPACE || secrets.DOCKERHUB_USERNAME }}"
+          namespace="${{ vars.DOCKERHUB_NAMESPACE }}"
+          if [[ -z "${namespace}" ]]; then
+            namespace="${{ secrets.DOCKERHUB_USERNAME }}"
+          fi
+          if [[ -z "${namespace}" ]]; then
+            namespace="${GITHUB_REPOSITORY_OWNER,,}"
+          fi
           version="${GITHUB_SHA}"
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             version="${GITHUB_REF_NAME}"
@@ -87,14 +93,31 @@ jobs:
             org.opencontainers.image.description=Scop3P toolkit container for Galaxy interactive tool deployment
             org.opencontainers.image.licenses=Apache-2.0
 
-      - name: Build and push image
+      - name: Build image
+        if: github.ref_type != 'tag'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ env.DOCKERFILE_PATH }}
           target: ${{ env.DOCKER_TARGET }}
           platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' && github.ref_type == 'tag' }}
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ steps.vars.outputs.build_date }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.vars.outputs.version }}
+
+      - name: Build and push image
+        if: github.ref_type == 'tag'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE_PATH }}
+          target: ${{ env.DOCKER_TARGET }}
+          platforms: linux/amd64
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

@@ -30,7 +30,36 @@ Then open `http://localhost:8000` to access the toolkit selector and launch the 
 
 ## Continuous delivery to Docker Hub
 
-GitHub Actions publishes the `bio2byte/scop3p-toolkit` image for default-branch pushes and version tags. Pull requests run the same build in validation mode without pushing.
+The GitHub Actions workflow lives in [`docker-publish.yml`](/Users/adrian/workspace/vub/Scop3P-notebooks/.github/workflows/docker-publish.yml) and has two stages:
+
+1. `Pytest suite`
+   Runs on pull requests, manual workflow dispatches, and version-tag pushes.
+   It installs the Python dependencies from `requirements-biophysics.txt` and `requirements-shiny.txt`, then runs:
+
+   ```bash
+   pytest tests/unit tests/integration
+   ```
+
+2. `Build and publish Docker image`
+   Runs only after the tests pass.
+
+   - On pull requests and `workflow_dispatch` runs:
+     - builds the `scop3p-toolkit` target for `linux/amd64`
+     - validates that the Docker image can be built
+     - does not publish anything to Docker Hub
+   - On version tags matching `v*`:
+     - builds the same image target
+     - logs in to Docker Hub
+     - publishes these tags:
+       - `latest`
+       - `sha-<short-commit>`
+       - `<git-tag>` such as `v1.2.3`
+
+The workflow resolves the Docker repository namespace in this order:
+
+1. `DOCKERHUB_NAMESPACE` repository variable
+2. `DOCKERHUB_USERNAME` repository secret
+3. the lowercased GitHub repository owner as a fallback for build-only runs
 
 Required repository secrets:
 
