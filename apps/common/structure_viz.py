@@ -19,6 +19,19 @@ from scipy.spatial import KDTree
 from .services import Scop3PClient
 
 
+B2B_METRIC_COLUMNS = (
+    "backbone",
+    "sidechain",
+    "ppII",
+    "coil",
+    "sheet",
+    "helix",
+    "earlyFolding",
+    "disoMine",
+)
+B2B_NORMALIZED_SUFFIX = "_normalized"
+
+
 class StructureVizService:
     def __init__(self, workdir: Path, timeout: int = 60) -> None:
         self.workdir = workdir
@@ -73,13 +86,93 @@ class StructureVizService:
             fasta_file.flush()
             predictor = SingleSeq(fasta_file.name)
             tools = []
-            for name in ["TOOL_BACKBONE_DYNAMICS", "TOOL_DYNAMINE", "TOOL_DISOMINE", "TOOL_EFOLDMINE"]:
+            for name in ["TOOL_DYNAMINE", "TOOL_DISOMINE", "TOOL_EFOLDMINE"]:
                 if hasattr(constants, name):
                     tools.append(getattr(constants, name))
             prediction = predictor.predict(tools=tools).get_all_predictions() if tools else predictor.predict().get_all_predictions()
+        
         protein = prediction.get("proteins", {}).get(accession, {})
-        dataframe = pd.DataFrame(protein)
+        return self._normalize_b2b_prediction(protein)
+
+    @staticmethod
+    def _normalize_b2b_prediction(protein: dict[str, object]) -> pd.DataFrame:
+        import pprint;
+        print("_normalize_b2b_prediction")
+        pprint.pprint(protein, indent=4, sort_dicts=True)
+        
+        sequence = "".join(protein.get("seq", ""))
+        print("SEQUENCE=", sequence, "length=", len(sequence))
+        
+        size = (
+            len(sequence)
+            or len(protein.get("backbone", []))
+            or len(protein.get("sidechain", []))
+            or len(protein.get("ppII", []))
+            or len(protein.get("coil", []))
+            or len(protein.get("sheet", []))
+            or len(protein.get("helix", []))
+            or len(protein.get("earlyFolding", []))
+            or len(protein.get("disoMine", []))
+        )
+        print("SIZE=", size)
+
+        def _coerce_series(value: object) -> list[object]:
+            if isinstance(value, (list, tuple)):
+                values = list(value)
+            elif hasattr(value, "tolist"):
+                values = list(value.tolist())  # type: ignore[call-arg]
+            else:
+                values = []
+
+            if len(values) < size:
+                values.extend([None] * (size - len(values)))
+            elif len(values) > size:
+                values = values[:size]
+            return values
+
+        dataframe = pd.DataFrame(
+            {
+                "Position": list(range(1, size + 1)),
+                "Amino acid": protein.get("seq"),
+                "backbone": _coerce_series(protein.get("backbone")),
+                "sidechain": _coerce_series(protein.get("sidechain")),
+                "ppII": _coerce_series(protein.get("ppII")),
+                "coil": _coerce_series(protein.get("coil")),
+                "sheet": _coerce_series(protein.get("sheet")),
+                "helix": _coerce_series(protein.get("helix")),
+                "earlyFolding": _coerce_series(protein.get("earlyFolding")),
+                "disoMine": _coerce_series(protein.get("disoMine")),
+            }
+        )
+        for column in B2B_METRIC_COLUMNS:
+            dataframe[column] = pd.to_numeric(dataframe[column], errors="coerce")
+            dataframe[StructureVizService.b2b_metric_column(column, normalized=True)] = (
+                StructureVizService._min_max_normalize_series(dataframe[column])
+            )
         return dataframe
+
+    @staticmethod
+    def b2b_metric_column(metric: str, *, normalized: bool = False) -> str:
+        return f"{metric}{B2B_NORMALIZED_SUFFIX}" if normalized else metric
+
+    @staticmethod
+    def _min_max_normalize_series(series: pd.Series) -> pd.Series:
+        numeric = pd.to_numeric(series, errors="coerce")
+        non_null = numeric.dropna()
+        if non_null.empty:
+            return pd.Series([pd.NA] * len(numeric), index=numeric.index, dtype="Float64")
+
+        minimum = float(non_null.min())
+        maximum = float(non_null.max())
+        if minimum == maximum:
+            return pd.Series(
+                [0.0 if pd.notna(value) else pd.NA for value in numeric],
+                index=numeric.index,
+                dtype="Float64",
+            )
+
+        normalized = (numeric - minimum) / (maximum - minimum)
+        return normalized.astype("Float64")
 
     def download_alphafold_pdb(self, accession: str) -> Path:
         out_path = self.workdir / f"AF-{accession}-F1-model_v6.pdb"

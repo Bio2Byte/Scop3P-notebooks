@@ -5,6 +5,7 @@ import pytest
 
 from common.structure_viz import StructureVizService
 from common.structure_viz import StructureOps
+from structure_viz.app import _tm_source_signature
 
 
 PDB_MINI = """ATOM      1  N   ALA A   1      11.104  13.207   2.100  1.00 10.00           N
@@ -117,6 +118,13 @@ def test_validate_pdb_id_accepts_2ivt_and_rejects_bad_id() -> None:
     assert StructureOps.validate_pdb_id("2IVT") == "2IVT"
     with pytest.raises(ValueError, match="Expected a 4-character RCSB identifier"):
         StructureOps.validate_pdb_id("21VTX")
+
+
+def test_tm_source_signature_prefers_upload_then_normalizes_pdb_id() -> None:
+    upload = [{"datapath": "/tmp/file.pdb", "name": "2IVT.pdb"}]
+    assert _tm_source_signature(upload, "1CRN") == ("upload", "/tmp/file.pdb|2IVT.pdb")
+    assert _tm_source_signature(None, "2ivt") == ("pdb", "2IVT")
+    assert _tm_source_signature(None, "") is None
 
 
 def test_save_chain_segment_rejects_missing_chain(tmp_path: Path) -> None:

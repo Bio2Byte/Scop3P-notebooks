@@ -11,7 +11,12 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from common.structure_viz import StructureOps, StructureViewerBuilder, StructureVizService  # noqa: E402
+from common.structure_viz import (  # noqa: E402
+    B2B_METRIC_COLUMNS,
+    StructureOps,
+    StructureViewerBuilder,
+    StructureVizService,
+)
 from common.logging_utils import get_logger  # noqa: E402
 from common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer  # noqa: E402
 
@@ -45,9 +50,24 @@ class StructureVizController:
         self.tm_chain_ranges_1 = reactive.value({})
         self.tm_chain_ranges_2 = reactive.value({})
         self.tm_structures_loaded = reactive.value(False)
+        self.tm_loaded_signature_1 = reactive.value(None)
+        self.tm_loaded_signature_2 = reactive.value(None)
 
 
 controller = StructureVizController()
+
+
+def _tm_source_signature(upload, pdb_id: str) -> tuple[str, str] | None:  # noqa: ANN001
+    if upload:
+        row = upload[0]
+        datapath = str(row.get("datapath", ""))
+        name = str(row.get("name", ""))
+        return ("upload", f"{datapath}|{name}")
+
+    pdb_key = pdb_id.strip().upper()
+    if pdb_key:
+        return ("pdb", pdb_key)
+    return None
 
 
 def _scroll_df(dataframe: pd.DataFrame) -> ui.Tag:
@@ -57,11 +77,46 @@ def _scroll_df(dataframe: pd.DataFrame) -> ui.Tag:
     <style>
       .scroll-df-wrap { max-height: 420px; overflow:auto; border:1px solid #ddd; border-radius:6px; }
       .scroll-df-wrap table { min-width:100%; border-collapse: collapse; font-size:13px; }
-      .scroll-df-wrap th,.scroll-df-wrap td { padding:6px 8px; border-bottom:1px solid #eee; white-space:nowrap; }
+      .scroll-df-wrap th,.scroll-df-wrap td { padding:6px 8px; border-bottom:1px solid #eee; white-space:nowrap; text-align:center; }
       .scroll-df-wrap thead th { position: sticky; top:0; background:#fafafa; z-index:2; }
     </style>
     """
     return ui.HTML(css + f"<div class='scroll-df-wrap'>{dataframe.to_html(index=False, escape=False)}</div>")
+
+
+def _reset_b2b_state() -> None:
+    controller.sequence.set("")
+    controller.b2b_df.set(pd.DataFrame())
+    controller.b2b_html.set("")
+    ui.update_select("b2b_metric", choices={}, selected=None)
+
+
+def _b2b_metric_names(dataframe: pd.DataFrame) -> list[str]:
+    if dataframe is None or dataframe.empty:
+        return []
+    return [
+        metric
+        for metric in B2B_METRIC_COLUMNS
+        if StructureVizService.b2b_metric_column(metric) in dataframe.columns
+    ]
+
+
+def _selected_b2b_metric_column(metric: str | None, *, normalized: bool) -> str | None:
+    if not metric:
+        return None
+    return StructureVizService.b2b_metric_column(metric, normalized=normalized)
+
+
+def _b2b_table_dataframe(dataframe: pd.DataFrame, *, normalized: bool) -> pd.DataFrame:
+    if dataframe is None or dataframe.empty:
+        return pd.DataFrame()
+    column_names = ["Position", "Amino acid"] + [
+        StructureVizService.b2b_metric_column(metric, normalized=normalized)
+        for metric in B2B_METRIC_COLUMNS
+    ]
+    table = dataframe.loc[:, column_names].copy()
+    table.columns = ["Position", "Amino acid", *B2B_METRIC_COLUMNS]
+    return table
 
 
 app_ui = scop3p_shell(
@@ -126,8 +181,10 @@ app_ui = scop3p_shell(
                     ui.input_action_button("fetch_seq", "Fetch sequence", class_="btn-warning"),
                     ui.input_action_button("run_b2b", "Run predictions", class_="btn-danger"),
                     ui.input_action_button("render_b2b_3d", "Show 3D", class_="btn-success"),
-                    col_widths=[4, 4, 4],
+                    ui.input_action_button("reset_b2b", "Reset results", class_="btn-secondary"),
+                    col_widths=[3, 3, 3, 3],
                 ),
+                ui.input_checkbox("b2b_normalized", "Show normalized values", value=False),
                 ui.input_select("b2b_metric", "Color by", choices=[]),
                 ui.output_ui("b2b_table"),
                 ui.output_ui("b2b_view"),
@@ -205,6 +262,7 @@ def server(input, output, session):
         if not accession:
             return
         controller.accession.set(accession)
+        _reset_b2b_state()
         controller.status.set(f"Protein set: {accession} | session: {controller.workdir}")
 
     @reactive.effect
@@ -290,6 +348,7 @@ def server(input, output, session):
         if not accession:
             controller.status.set("Set a UniProt accession first.")
             return
+        controller.b2b_html.set("")
         sequence = controller.service.fetch_sequence(accession)
         controller.sequence.set(sequence)
         controller.status.set(f"Sequence fetched: {len(sequence)} aa")
@@ -304,12 +363,15 @@ def server(input, output, session):
         if not accession or not sequence:
             controller.status.set("Fetch sequence first.")
             return
+        
+        controller.status.set("Predicting biophysical features, please wait...")
         dataframe = controller.service.predict_b2b(accession, sequence)
         controller.b2b_df.set(dataframe)
-        numeric = [column for column in dataframe.columns if pd.api.types.is_numeric_dtype(dataframe[column])]
-        ui.update_select("b2b_metric", choices={column: column for column in numeric}, selected=numeric[0] if numeric else None)
+        controller.b2b_html.set("")
+        metrics = _b2b_metric_names(dataframe)
+        ui.update_select("b2b_metric", choices={metric: metric for metric in metrics}, selected=metrics[0] if metrics else None)
         controller.status.set(f"Bio2Byte prediction completed ({len(dataframe)} rows).")
-        LOGGER.info("run_b2b completed rows=%s metrics=%s", len(dataframe), len(numeric), extra={"event": "run_b2b"})
+        LOGGER.info("run_b2b completed rows=%s metrics=%s", len(dataframe), len(metrics), extra={"event": "run_b2b"})
 
     @reactive.effect
     @reactive.event(input.render_b2b_3d)
@@ -317,24 +379,43 @@ def server(input, output, session):
         dataframe = controller.b2b_df.get()
         accession = controller.accession.get()
         metric = input.b2b_metric()
+        normalized = bool(input.b2b_normalized())
+        metric_column = _selected_b2b_metric_column(metric, normalized=normalized)
         af_path = controller.af_path.get()
-        LOGGER.info("render_b2b requested accession=%s metric=%s", accession or "-", metric or "-", extra={"event": "render_b2b"})
-        if dataframe is None or dataframe.empty or not metric:
+        LOGGER.info(
+            "render_b2b requested accession=%s metric=%s normalized=%s",
+            accession or "-",
+            metric or "-",
+            normalized,
+            extra={"event": "render_b2b"},
+        )
+        if dataframe is None or dataframe.empty or not metric or metric_column is None:
             controller.status.set("Run predictions and choose a metric first.")
             return
         if af_path is None:
+            controller.b2b_html.set("")
             controller.status.set("Fetch AlphaFold first (tab 3).")
             return
-        out_pdb = controller.workdir / f"b2b_{metric}.pdb"
-        bfactor_pdb = StructureOps.bfactor_pdb(Path(af_path), dataframe, metric, out_pdb)
+        out_pdb = controller.workdir / f"b2b_{metric_column}.pdb"
+        bfactor_pdb = StructureOps.bfactor_pdb(Path(af_path), dataframe, metric_column, out_pdb)
         html_payload = StructureViewerBuilder.b2b_html(
             pdb_text=bfactor_pdb.read_text(encoding="utf-8", errors="ignore"),
             accession=accession,
-            metric=metric,
+            metric=metric_column,
         )
         controller.b2b_html.set(html_payload)
-        controller.status.set(f"Rendered Bio2Byte 3D metric: {metric}")
-        LOGGER.info("render_b2b completed metric=%s", metric, extra={"event": "render_b2b"})
+        controller.status.set(
+            f"Rendered Bio2Byte 3D metric: {metric}"
+            f"{' (normalized)' if normalized else ''}"
+        )
+        LOGGER.info("render_b2b completed metric=%s normalized=%s", metric, normalized, extra={"event": "render_b2b"})
+
+    @reactive.effect
+    @reactive.event(input.reset_b2b)
+    def _reset_b2b() -> None:
+        LOGGER.info("reset_b2b requested", extra={"event": "reset_b2b"})
+        _reset_b2b_state()
+        controller.status.set("Bio2Byte results cleared.")
 
     @reactive.effect
     @reactive.event(input.rin_dl_af)
@@ -393,10 +474,20 @@ def server(input, output, session):
     def _run_tmalign() -> None:
         LOGGER.info("run_tmalign requested", extra={"event": "run_tmalign"})
         try:
+            current_signature_1 = _tm_source_signature(input.tm_pdb1(), input.tm_pdb1_id().strip())
+            current_signature_2 = _tm_source_signature(input.tm_pdb2(), input.tm_pdb2_id().strip())
             f1 = controller.tm_input_1.get()
             f2 = controller.tm_input_2.get()
             if f1 is None or f2 is None:
                 controller.tm_report.set("Load both structures first.")
+                controller.tm_html.set("")
+                return
+            if (
+                current_signature_1 != controller.tm_loaded_signature_1.get()
+                or current_signature_2 != controller.tm_loaded_signature_2.get()
+            ):
+                controller.tm_structures_loaded.set(False)
+                controller.tm_report.set("TM-align inputs changed. Reload both structures first.")
                 controller.tm_html.set("")
                 return
 
@@ -470,6 +561,8 @@ def server(input, output, session):
             controller.tm_input_2.set(f2)
             controller.tm_chain_ranges_1.set(ranges_1)
             controller.tm_chain_ranges_2.set(ranges_2)
+            controller.tm_loaded_signature_1.set(_tm_source_signature(input.tm_pdb1(), tm_pdb1_id))
+            controller.tm_loaded_signature_2.set(_tm_source_signature(input.tm_pdb2(), tm_pdb2_id))
             controller.tm_structures_loaded.set(True)
 
             first_chain_1 = next(iter(ranges_1))
@@ -502,8 +595,33 @@ def server(input, output, session):
             controller.tm_input_2.set(None)
             controller.tm_chain_ranges_1.set({})
             controller.tm_chain_ranges_2.set({})
+            controller.tm_loaded_signature_1.set(None)
+            controller.tm_loaded_signature_2.set(None)
             controller.tm_report.set(f"TM-align load error: {error}")
             controller.status.set("TM-align structure load failed.")
+
+    @reactive.effect
+    def _invalidate_loaded_tmalign_inputs() -> None:
+        current_signature_1 = _tm_source_signature(input.tm_pdb1(), input.tm_pdb1_id().strip())
+        current_signature_2 = _tm_source_signature(input.tm_pdb2(), input.tm_pdb2_id().strip())
+        loaded_signature_1 = controller.tm_loaded_signature_1.get()
+        loaded_signature_2 = controller.tm_loaded_signature_2.get()
+
+        if loaded_signature_1 is None and loaded_signature_2 is None:
+            return
+        if current_signature_1 == loaded_signature_1 and current_signature_2 == loaded_signature_2:
+            return
+
+        controller.tm_structures_loaded.set(False)
+        controller.tm_input_1.set(None)
+        controller.tm_input_2.set(None)
+        controller.tm_chain_ranges_1.set({})
+        controller.tm_chain_ranges_2.set({})
+        controller.tm_loaded_signature_1.set(None)
+        controller.tm_loaded_signature_2.set(None)
+        controller.tm_html.set("")
+        controller.tm_report.set("TM-align inputs changed. Reload both structures first.")
+        LOGGER.info("tmalign inputs invalidated after source change", extra={"event": "load_tmalign_structures"})
 
     @reactive.effect
     def _sync_tm_chain1_range() -> None:
@@ -565,7 +683,12 @@ def server(input, output, session):
 
     @render.ui
     def b2b_table():
-        return _scroll_df(controller.b2b_df.get())
+        return _scroll_df(
+            _b2b_table_dataframe(
+                controller.b2b_df.get(),
+                normalized=bool(input.b2b_normalized()),
+            )
+        )
 
     @render.ui
     def b2b_view():
