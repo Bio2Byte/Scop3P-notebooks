@@ -1,6 +1,77 @@
 # Scop3P-notebooks
 Jupyter Notebook examples of Scop3P REST API services.
 
+## Published container
+
+This repository publishes the Galaxy-facing `bio2byte/scop3p-toolkit` container. The image packages the single-container portal exposed on port `8000` and is the intended entrypoint for a UseGalaxy interactive tool.
+
+- Docker image: `bio2byte/scop3p-toolkit`
+- Dockerfile target: `scop3p-toolkit`
+- App-specific documentation: [`apps/README.md`](/Users/adrian/workspace/vub/Scop3P-notebooks/apps/README.md)
+
+## Build and run the toolkit image
+
+Build the published image locally:
+
+```bash
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker build \
+  -f docker/Dockerfile \
+  -t bio2byte/scop3p-toolkit:local \
+  .
+```
+
+Run it locally:
+
+```bash
+docker run --rm -p 8000:8000 bio2byte/scop3p-toolkit:local
+```
+
+Then open `http://localhost:8000` to access the toolkit selector and launch the bundled interactive apps.
+
+## Continuous delivery to Docker Hub
+
+The GitHub Actions workflow lives in [`docker-publish.yml`](/Users/adrian/workspace/vub/Scop3P-notebooks/.github/workflows/docker-publish.yml) and has two stages:
+
+1. `Pytest suite`
+   Runs on pull requests, manual workflow dispatches, and version-tag pushes.
+   It installs the Python dependencies from `requirements-biophysics.txt` and `requirements-shiny.txt`, then runs:
+
+   ```bash
+   pytest tests/unit tests/integration
+   ```
+
+2. `Build and publish Docker image`
+   Runs only after the tests pass.
+
+   - On pull requests and `workflow_dispatch` runs:
+     - builds the `scop3p-toolkit` target for `linux/amd64`
+     - validates that the Docker image can be built
+     - does not publish anything to Docker Hub
+   - On version tags matching `v*`:
+     - builds the same image target
+     - logs in to Docker Hub
+     - publishes these tags:
+       - `latest`
+       - `sha-<short-commit>`
+       - `<git-tag>` such as `v1.2.3`
+
+The workflow resolves the Docker repository namespace in this order:
+
+1. `DOCKERHUB_NAMESPACE` repository variable
+2. `DOCKERHUB_USERNAME` repository secret
+3. the lowercased GitHub repository owner as a fallback for build-only runs
+
+Required repository secrets:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Optional repository variable:
+
+- `DOCKERHUB_NAMESPACE`
+
+If `DOCKERHUB_NAMESPACE` is not set, the workflow publishes to the same namespace as `DOCKERHUB_USERNAME`.
+
 ## About Scop3P[^1]
 
 **Scop3P: A Comprehensive Resource of Human Phosphosites within Their Full Context**

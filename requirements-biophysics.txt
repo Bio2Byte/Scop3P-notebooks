@@ -1,1 +1,2 @@
-b2bTools==3.0.8b3
+b2bTools~=3.0.8
+scop3p~=1.1.0

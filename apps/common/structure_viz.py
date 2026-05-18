@@ -16,37 +16,33 @@ from Bio.PDB import PDBIO, PDBParser, Select
 from b2bTools import SingleSeq, constants
 from scipy.spatial import KDTree
 
+from .services import Scop3PClient
+
+
+B2B_METRIC_COLUMNS = (
+    "backbone",
+    "sidechain",
+    "ppII",
+    "coil",
+    "sheet",
+    "helix",
+    "earlyFolding",
+    "disoMine",
+)
+B2B_NORMALIZED_SUFFIX = "_normalized"
+
 
 class StructureVizService:
     def __init__(self, workdir: Path, timeout: int = 60) -> None:
         self.workdir = workdir
         self.timeout = timeout
+        self.scop3p_client = Scop3PClient(timeout=timeout)
         self.workdir.mkdir(parents=True, exist_ok=True)
 
     def fetch_ptms(self, accession: str) -> pd.DataFrame:
-        url = "https://iomics.ugent.be/scop3p/api/modifications"
-        response = requests.get(url, params={"accession": accession}, headers={"accept": "application/json"}, timeout=self.timeout)
-        response.raise_for_status()
-        payload = response.json()
-        if isinstance(payload, list):
-            payload = payload[0] if payload else {}
-        dataframe = pd.DataFrame(payload.get("modifications", []))
+        dataframe = self.scop3p_client.fetch_modifications(accession)
         if dataframe.empty:
             return dataframe
-        columns = [
-            "residue",
-            "name",
-            "evidence",
-            "position",
-            "source",
-            "reference",
-            "functionalScore",
-            "specificSinglyPhosphorylated",
-        ]
-        keep = [column for column in columns if column in dataframe.columns]
-        dataframe = dataframe[keep].copy()
-        if "position" in dataframe.columns:
-            dataframe["position"] = pd.to_numeric(dataframe["position"], errors="coerce").astype("Int64")
         return dataframe
 
     def fetch_variants(self, accession: str) -> pd.DataFrame:
@@ -90,13 +86,93 @@ class StructureVizService:
             fasta_file.flush()
             predictor = SingleSeq(fasta_file.name)
             tools = []
-            for name in ["TOOL_BACKBONE_DYNAMICS", "TOOL_DYNAMINE", "TOOL_DISOMINE", "TOOL_EFOLDMINE"]:
+            for name in ["TOOL_DYNAMINE", "TOOL_DISOMINE", "TOOL_EFOLDMINE"]:
                 if hasattr(constants, name):
                     tools.append(getattr(constants, name))
             prediction = predictor.predict(tools=tools).get_all_predictions() if tools else predictor.predict().get_all_predictions()
+        
         protein = prediction.get("proteins", {}).get(accession, {})
-        dataframe = pd.DataFrame(protein)
+        return self._normalize_b2b_prediction(protein)
+
+    @staticmethod
+    def _normalize_b2b_prediction(protein: dict[str, object]) -> pd.DataFrame:
+        import pprint;
+        print("_normalize_b2b_prediction")
+        pprint.pprint(protein, indent=4, sort_dicts=True)
+        
+        sequence = "".join(protein.get("seq", ""))
+        print("SEQUENCE=", sequence, "length=", len(sequence))
+        
+        size = (
+            len(sequence)
+            or len(protein.get("backbone", []))
+            or len(protein.get("sidechain", []))
+            or len(protein.get("ppII", []))
+            or len(protein.get("coil", []))
+            or len(protein.get("sheet", []))
+            or len(protein.get("helix", []))
+            or len(protein.get("earlyFolding", []))
+            or len(protein.get("disoMine", []))
+        )
+        print("SIZE=", size)
+
+        def _coerce_series(value: object) -> list[object]:
+            if isinstance(value, (list, tuple)):
+                values = list(value)
+            elif hasattr(value, "tolist"):
+                values = list(value.tolist())  # type: ignore[call-arg]
+            else:
+                values = []
+
+            if len(values) < size:
+                values.extend([None] * (size - len(values)))
+            elif len(values) > size:
+                values = values[:size]
+            return values
+
+        dataframe = pd.DataFrame(
+            {
+                "Position": list(range(1, size + 1)),
+                "Amino acid": protein.get("seq"),
+                "backbone": _coerce_series(protein.get("backbone")),
+                "sidechain": _coerce_series(protein.get("sidechain")),
+                "ppII": _coerce_series(protein.get("ppII")),
+                "coil": _coerce_series(protein.get("coil")),
+                "sheet": _coerce_series(protein.get("sheet")),
+                "helix": _coerce_series(protein.get("helix")),
+                "earlyFolding": _coerce_series(protein.get("earlyFolding")),
+                "disoMine": _coerce_series(protein.get("disoMine")),
+            }
+        )
+        for column in B2B_METRIC_COLUMNS:
+            dataframe[column] = pd.to_numeric(dataframe[column], errors="coerce")
+            dataframe[StructureVizService.b2b_metric_column(column, normalized=True)] = (
+                StructureVizService._min_max_normalize_series(dataframe[column])
+            )
         return dataframe
+
+    @staticmethod
+    def b2b_metric_column(metric: str, *, normalized: bool = False) -> str:
+        return f"{metric}{B2B_NORMALIZED_SUFFIX}" if normalized else metric
+
+    @staticmethod
+    def _min_max_normalize_series(series: pd.Series) -> pd.Series:
+        numeric = pd.to_numeric(series, errors="coerce")
+        non_null = numeric.dropna()
+        if non_null.empty:
+            return pd.Series([pd.NA] * len(numeric), index=numeric.index, dtype="Float64")
+
+        minimum = float(non_null.min())
+        maximum = float(non_null.max())
+        if minimum == maximum:
+            return pd.Series(
+                [0.0 if pd.notna(value) else pd.NA for value in numeric],
+                index=numeric.index,
+                dtype="Float64",
+            )
+
+        normalized = (numeric - minimum) / (maximum - minimum)
+        return normalized.astype("Float64")
 
     def download_alphafold_pdb(self, accession: str) -> Path:
         out_path = self.workdir / f"AF-{accession}-F1-model_v6.pdb"
@@ -162,6 +238,15 @@ class ChainRangeSelect(Select):
 
 class StructureOps:
     @staticmethod
+    def validate_pdb_id(pdb_id: str) -> str:
+        pdb_key = pdb_id.strip().upper()
+        if len(pdb_key) != 4 or not pdb_key.isalnum():
+            raise ValueError(
+                f"Invalid PDB ID '{pdb_id}'. Expected a 4-character RCSB identifier such as 2IVT."
+            )
+        return pdb_key
+
+    @staticmethod
     def bfactor_pdb(pdb_path: Path, dataframe: pd.DataFrame, value_col: str, out_path: Path, chain: str | None = None) -> Path:
         values = dataframe[value_col].tolist()
         position_to_value = {index + 1: float(value) for index, value in enumerate(values) if value is not None and value == value}
@@ -196,19 +281,70 @@ class StructureOps:
         return min(positions), max(positions)
 
     @staticmethod
+    def chain_ranges_from_pdb(pdb_path: Path) -> dict[str, tuple[int, int]]:
+        parser = PDBParser(QUIET=True)
+        structure = parser.get_structure("chains", str(pdb_path))
+        model = next(structure.get_models())
+        chain_ranges: dict[str, tuple[int, int]] = {}
+        for chain in model.get_chains():
+            positions = [res.id[1] for res in chain.get_residues() if res.id[0] == " "]
+            if positions:
+                chain_ranges[chain.id] = (min(positions), max(positions))
+        return chain_ranges
+
+    @staticmethod
     def save_chain_segment(source_pdb: Path, target_pdb: Path, chain_id: str, start: int | None, end: int | None) -> Path:
         parser = PDBParser(QUIET=True)
         structure = parser.get_structure("segment", str(source_pdb))
+        model = next(structure.get_models())
+        if chain_id not in model:
+            available = ", ".join(chain.id for chain in model.get_chains()) or "(none)"
+            raise ValueError(
+                f"Chain '{chain_id}' not found in {source_pdb.name}. Available chains: {available}."
+            )
+
+        chain = model[chain_id]
+        positions = [res.id[1] for res in chain.get_residues() if res.id[0] == " "]
+        if not positions:
+            raise ValueError(f"Chain '{chain_id}' in {source_pdb.name} does not contain standard residues.")
+
+        chain_start = min(positions)
+        chain_end = max(positions)
+        if start is not None and end is not None and start > end:
+            raise ValueError(f"Invalid range for chain '{chain_id}': start {start} is greater than end {end}.")
+        if start is not None and start > chain_end:
+            raise ValueError(f"Start {start} is outside chain '{chain_id}' range {chain_start}-{chain_end}.")
+        if end is not None and end < chain_start:
+            raise ValueError(f"End {end} is outside chain '{chain_id}' range {chain_start}-{chain_end}.")
+
         io = PDBIO()
         io.set_structure(structure)
         io.save(str(target_pdb), select=ChainRangeSelect(chain_id, start, end))
+        segment_positions = [
+            int(line[22:26].strip())
+            for line in target_pdb.read_text(encoding="utf-8", errors="ignore").splitlines()
+            if line.startswith(("ATOM", "HETATM")) and line[21].strip() == chain_id and line[22:26].strip()
+        ]
+        if not segment_positions:
+            raise ValueError(
+                f"Chain/range selection produced an empty segment for chain '{chain_id}' "
+                f"with range {start or chain_start}-{end or chain_end} in {source_pdb.name}."
+            )
         return target_pdb
 
     @staticmethod
     def run_tmalign(pdb1: Path, pdb2: Path, out_dir: Path, out_name: str = "aligned") -> tuple[Path, str]:
         out_dir.mkdir(parents=True, exist_ok=True)
         cmd = ["TM-align", str(pdb1.resolve()), str(pdb2.resolve()), "-o", out_name]
-        process = subprocess.run(cmd, cwd=out_dir, capture_output=True, text=True, check=True)
+        try:
+            process = subprocess.run(cmd, cwd=out_dir, capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as error:
+            stderr = (error.stderr or "").strip()
+            stdout = (error.stdout or "").strip()
+            details = stderr or stdout or f"exit code {error.returncode}"
+            raise RuntimeError(
+                f"TM-align failed for {pdb1.name} vs {pdb2.name}: {details}"
+            ) from error
         candidates = [
             out_dir / out_name,
             out_dir / f"{out_name}.pdb",

@@ -30,7 +30,7 @@ def test_portal_root_selector_and_cookie() -> None:
 
     default_response = client.get("/")
     assert default_response.status_code == 200
-    assert "App selector" in default_response.text
+    assert "Scop3P-Toolkit" in default_response.text
     assert "Peptide Mapper" in default_response.text
     assert "scop3p_app=peptide-mapper" in default_response.headers["set-cookie"]
 

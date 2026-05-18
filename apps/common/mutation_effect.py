@@ -60,34 +60,11 @@ class MutationEffectService:
         return sequence
 
     def fetch_scop3p_modifications(self, accession: str) -> pd.DataFrame:
-        response = requests.get(
-            f"{self.scop3p_client.base_url}/modifications",
-            params={"accession": accession},
-            headers={"accept": "application/json"},
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        if isinstance(payload, list):
-            payload = payload[0] if payload else {}
-
-        dataframe = pd.DataFrame(payload.get("modifications", []))
+        dataframe = self.scop3p_client.fetch_modifications(accession)
         if dataframe.empty:
             return dataframe
 
-        keep = [
-            column
-            for column in [
-                "position",
-                "residue",
-                "name",
-                "source",
-                "evidence",
-                "reference",
-                "functionalScore",
-            ]
-            if column in dataframe.columns
-        ]
+        keep = [column for column in dataframe.columns if column != "specificSinglyPhosphorylated"]
         dataframe = dataframe[keep].copy()
         dataframe["position"] = pd.to_numeric(dataframe["position"], errors="coerce")
         dataframe = dataframe.dropna(subset=["position"])
@@ -102,19 +79,12 @@ class MutationEffectService:
             handle.write(f">{accession}\n{sequence}\n")
             handle.flush()
             predictor = SingleSeq(handle.name)
-            if constants is not None:
-                tool_candidates = []
-                for name in (
-                    "TOOL_BACKBONE_DYNAMICS",
-                    "TOOL_DYNAMINE",
-                    "TOOL_DISOMINE",
-                    "TOOL_EFOLDMINE",
-                ):
-                    if hasattr(constants, name):
-                        tool_candidates.append(getattr(constants, name))
-                if tool_candidates:
-                    return predictor.predict(tools=tool_candidates).get_all_predictions()
-            return predictor.predict().get_all_predictions()
+            
+            predictor.predict(
+                tools=[constants.TOOL_DYNAMINE, constants.TOOL_DISOMINE, constants.TOOL_EFOLDMINE]
+            )
+            
+            return predictor.get_all_predictions()
 
     @staticmethod
     def prediction_to_df(prediction: dict, accession: str) -> pd.DataFrame:
@@ -135,14 +105,21 @@ class MutationEffectService:
         )
         dataframe = pd.DataFrame(
             {
+                "seq": protein.get("seq", [None] * size),
                 "seqpos": list(range(1, size + 1)),
                 "backbone": protein.get("backbone", [None] * size),
+                "sidechain": protein.get("sidechain", [None] * size),
+                "helix": protein.get("helix", [None] * size),
+                "sheet": protein.get("sheet", [None] * size),
+                "coil": protein.get("coil", [None] * size),
+                "ppII": protein.get("ppII", [None] * size),
                 "disoMine": protein.get("disoMine", [None] * size),
                 "earlyFolding": protein.get("earlyFolding", [None] * size),
             }
         )
-        for column in ["backbone", "disoMine", "earlyFolding"]:
+        for column in ["backbone", "sidechain", "helix", "sheet", "coil", "ppII", "disoMine", "earlyFolding"]:
             dataframe[column] = pd.to_numeric(dataframe[column], errors="coerce")
+
         return dataframe
 
     @staticmethod
@@ -519,6 +496,7 @@ class MutationEffectViews:
         for index in range(1, sticky_cols + 1):
             sticky_css.append(
                 f"""
+#{table_id} table th {{ text-align:center;}},
 #{table_id} table th:nth-child({index}),
 #{table_id} table td:nth-child({index}) {{
   position: sticky;
