@@ -1,7 +1,17 @@
 # Scop3P-notebooks
-Jupyter Notebook examples of Scop3P REST API services.
+Jupyter Notebook examples of Scop3P REST API services as well as ShinyApp/Voilà applications for the Scop3P-Toolkit.
+
+![GitHub License](https://img.shields.io/github/license/bio2byte/Scop3P-notebooks)
+![GitHub Release](https://img.shields.io/github/v/release/bio2byte/Scop3P-notebooks)
+![GitHub Tag](https://img.shields.io/github/v/tag/bio2byte/Scop3P-notebooks)
+![Docker Image Version](https://img.shields.io/docker/v/bio2byte/scop3p-toolkit)
+![Docker Image Size (tag)](https://img.shields.io/docker/image-size/bio2byte/scop3p-toolkit/latest)
+![Docker Pulls](https://img.shields.io/docker/pulls/bio2byte/scop3p-toolkit)
+![Website](https://img.shields.io/website?url=https%3A%2F%2Fiomics.ugent.be%2Fscop3p&up_message=Visit%20Sco3P)
 
 ## Published container
+
+![https://hub.docker.com/r/bio2byte/scop3p-toolkit](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 
 This repository publishes the Galaxy-facing `bio2byte/scop3p-toolkit` container. The image packages the single-container portal exposed on port `8000` and is the intended entrypoint for a UseGalaxy interactive tool.
 
