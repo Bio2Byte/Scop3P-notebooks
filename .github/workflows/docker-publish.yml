@@ -79,13 +79,24 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Check whether latest can be published
+        id: latest
+        if: github.event_name != 'pull_request' && github.ref_type == 'tag'
+        shell: bash
+        run: |
+          if docker buildx imagetools inspect "docker.io/${{ steps.vars.outputs.image_repository }}:latest" > /dev/null 2>&1; then
+            echo "push_latest=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "push_latest=true" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: docker.io/${{ steps.vars.outputs.image_repository }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' && steps.latest.outputs.push_latest == 'true' }}
             type=sha,format=short,prefix=sha-
             type=ref,event=tag
           labels: |
