@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from common.logging_utils import configure_logging, get_log_file_path, get_metadata_path
 from shiny import App
 from starlette.testclient import TestClient
 
@@ -38,3 +39,11 @@ def test_portal_root_selector_and_cookie() -> None:
     assert selected_response.status_code == 200
     assert "Structure Visualisation" in selected_response.text
     assert "scop3p_app=structure-viz" in selected_response.headers["set-cookie"]
+
+
+def test_portal_logging_metadata_configured() -> None:
+    configure_logging()
+    assert get_log_file_path() is not None
+    metadata_path = get_metadata_path()
+    assert metadata_path is not None
+    assert metadata_path.exists()

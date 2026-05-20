@@ -8,11 +8,13 @@ from urllib.parse import parse_qsl, urlencode
 
 from starlette.datastructures import Headers, MutableHeaders
 
+from common.logging_utils import get_logger
 from mutation_effect.app import app as mutation_effect_app
 from peptide_mapper.app import app as peptide_mapper_app
 from structure_viz.app import app as structure_viz_app
 
 
+LOGGER = get_logger("scop3p.portal")
 APP_OPTIONS = {
     "peptide-mapper": ("Peptide Mapper", "fa-solid fa-map-pin", peptide_mapper_app),
     "structure-viz": ("Structure Visualisation", "fa-solid fa-cube", structure_viz_app),
@@ -30,7 +32,14 @@ def _normalize_app_key(value: str | None) -> str:
 def _get_selected_app_key(scope: dict[str, Any]) -> str:
     query_items = dict(parse_qsl(scope.get("query_string", b"").decode("utf-8"), keep_blank_values=True))
     if "app" in query_items:
-        return _normalize_app_key(query_items["app"])
+        selected = _normalize_app_key(query_items["app"])
+        LOGGER.info(
+            "portal navbar clicked requested_app=%s selected_app=%s",
+            query_items["app"],
+            selected,
+            extra={"event": "navbar_click"},
+        )
+        return selected
 
     headers = Headers(scope=scope)
     cookie_header = headers.get("cookie", "")
@@ -191,6 +200,7 @@ def _set_selection_cookie(headers: MutableHeaders, selected_key: str) -> None:
 class SingleRootPortal:
     def __init__(self) -> None:
         self.apps = {key: app for key, (_, _, app) in APP_OPTIONS.items()}
+        LOGGER.info("portal initialized apps=%s", ",".join(self.apps), extra={"event": "portal_startup"})
 
     async def __call__(self, scope, receive, send) -> None:  # noqa: ANN001
         scope_type = scope["type"]
@@ -201,6 +211,13 @@ class SingleRootPortal:
         selected_key = _get_selected_app_key(scope)
         selected_app = self.apps[selected_key]
         delegated_scope = _strip_selector_query(scope)
+        LOGGER.info(
+            "portal dispatch scope=%s selected_app=%s path=%s",
+            scope_type,
+            selected_key,
+            scope.get("path", "-"),
+            extra={"event": "portal_dispatch"},
+        )
 
         if scope_type == "http":
             await self._dispatch_http(selected_app, delegated_scope, receive, send, selected_key)
@@ -261,8 +278,10 @@ class SingleRootPortal:
         while True:
             message = await receive()
             if message["type"] == "lifespan.startup":
+                LOGGER.info("portal lifespan startup", extra={"event": "portal_lifespan"})
                 await send({"type": "lifespan.startup.complete"})
             elif message["type"] == "lifespan.shutdown":
+                LOGGER.info("portal lifespan shutdown", extra={"event": "portal_lifespan"})
                 await send({"type": "lifespan.shutdown.complete"})
                 return
 
