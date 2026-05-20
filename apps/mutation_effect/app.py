@@ -14,7 +14,7 @@ from common.mutation_effect import (  # noqa: E402
     MutationEffectService,
     MutationEffectViews,
 )
-from common.logging_utils import get_logger  # noqa: E402
+from common.logging_utils import get_logger, log_action_button_click  # noqa: E402
 from common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer  # noqa: E402
 
 
@@ -119,6 +119,7 @@ def server(input, output, session):
     def _run_wt() -> None:
         try:
             accession_value = input.accession().strip()
+            log_action_button_click(LOGGER, "run_wt", input.run_wt())
             LOGGER.info("run_wt requested accession=%s", accession_value or "-", extra={"event": "run_wt"})
             status_text.set("Fetching UniProt sequence and Scop3P PTMs...")
             sequence_value = service.fetch_uniprot_sequence(accession_value)
@@ -169,8 +170,10 @@ def server(input, output, session):
     @reactive.event(input.run_mut)
     def _run_mut() -> None:
         try:
+            log_action_button_click(LOGGER, "run_mut", input.run_mut())
             LOGGER.info("run_mut requested positions=%s aas=%s", input.positions(), input.mut_aas(), extra={"event": "run_mut"})
             if wt_df.get() is None or not sequence.get():
+                LOGGER.warning("run_mut blocked wt prediction missing", extra={"event": "run_mut"})
                 raise ValueError("Run WT prediction first.")
 
             parsed_mutations = service.parse_mutations(input.positions(), input.mut_aas())
@@ -217,8 +220,10 @@ def server(input, output, session):
     @reactive.event(input.run_inf)
     def _run_inf() -> None:
         try:
+            log_action_button_click(LOGGER, "run_inf", input.run_inf())
             LOGGER.info("run_inf requested mutations=%s", len(mutations.get()), extra={"event": "run_inf"})
             if wt_df.get() is None or mut_df.get() is None:
+                LOGGER.warning("run_inf blocked required predictions missing", extra={"event": "run_inf"})
                 raise ValueError("Run WT prediction and Mutant prediction first.")
 
             status_text.set("Running inference...")

@@ -10,7 +10,7 @@ if str(ROOT) not in sys.path:
 import pandas as pd
 from shiny import App, reactive, render, ui
 
-from common.logging_utils import get_logger
+from common.logging_utils import get_logger, log_action_button_click
 from common.models import PeptideSelectionMode
 from common.peptide_mapper import PeptideMapperService, map_selection
 from common.services import AlphaFoldService, Scop3PClient
@@ -184,8 +184,10 @@ def server(input, output, session):
     @reactive.event(input.load_btn)
     def _load_data() -> None:
         accession = input.accession().strip()
+        log_action_button_click(LOGGER, "load_btn", input.load_btn())
         LOGGER.info("load requested accession=%s", accession or "-", extra={"event": "load_btn"})
         if not accession:
+            LOGGER.warning("load blocked missing accession", extra={"event": "load_btn"})
             controller.status_text.set("Enter an accession (e.g., O00571), then click Load.")
             return
 
@@ -205,6 +207,7 @@ def server(input, output, session):
         controller.clear_render_state()
 
         if dataframe.empty:
+            LOGGER.warning("load completed without rows accession=%s", accession, extra={"event": "load_btn"})
             controller.status_text.set(f"No peptides returned for {accession}.")
             ui.update_selectize("peptides", choices={}, selected=[])
             return
@@ -251,8 +254,10 @@ def server(input, output, session):
     @reactive.event(input.map_all)
     def _map_all() -> None:
         filtered = controller.filtered_dataframe.get()
+        log_action_button_click(LOGGER, "map_all", input.map_all())
         LOGGER.info("map_all requested", extra={"event": "map_all"})
         if filtered is None or filtered.empty:
+            LOGGER.warning("map_all blocked no filtered rows", extra={"event": "map_all"})
             controller.status_text.set("No filtered rows available. Load data first.")
             return
 
@@ -279,12 +284,14 @@ def server(input, output, session):
             extra={"event": "render_selection"},
         )
         if not accession:
+            LOGGER.warning("render blocked missing accession", extra={"event": "render_selection"})
             controller.status_text.set("Enter an accession and click Load first.")
             return
 
         dataframe_all = controller.dataframe.get()
         dataframe_filtered = controller.filtered_dataframe.get()
         if dataframe_all is None or dataframe_all.empty:
+            LOGGER.warning("render blocked no data loaded", extra={"event": "render_selection"})
             controller.status_text.set("No data loaded. Click Load first.")
             return
 
@@ -353,12 +360,15 @@ def server(input, output, session):
     @reactive.event(input.export_html)
     def _export_html() -> None:
         accession = input.accession().strip()
+        log_action_button_click(LOGGER, "export_html", input.export_html())
         LOGGER.info("export requested accession=%s", accession or "-", extra={"event": "export_html"})
         if not accession:
+            LOGGER.warning("export blocked missing accession", extra={"event": "export_html"})
             controller.status_text.set("Enter an accession first.")
             return
 
         if not controller.viewer_html.get() or controller.last_pdb_path.get() is None:
+            LOGGER.warning("export blocked no rendered selection", extra={"event": "export_html"})
             controller.status_text.set("Render a selection first before exporting.")
             return
 

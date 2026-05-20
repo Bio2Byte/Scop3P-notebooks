@@ -17,7 +17,7 @@ from common.structure_viz import (  # noqa: E402
     StructureViewerBuilder,
     StructureVizService,
 )
-from common.logging_utils import get_logger  # noqa: E402
+from common.logging_utils import get_logger, log_action_button_click  # noqa: E402
 from common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer  # noqa: E402
 
 
@@ -250,6 +250,7 @@ def server(input, output, session):
     def require_accession() -> str | None:
         accession = input.accession().strip()
         if not accession:
+            LOGGER.warning("action blocked missing accession", extra={"event": "require_accession"})
             controller.status.set("Please enter a UniProt accession.")
             return None
         return accession
@@ -257,6 +258,7 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.set_accession)
     def _set_accession() -> None:
+        log_action_button_click(LOGGER, "set_accession", input.set_accession())
         accession = require_accession()
         LOGGER.info("set_accession requested accession=%s", accession or "-", extra={"event": "set_accession"})
         if not accession:
@@ -269,8 +271,10 @@ def server(input, output, session):
     @reactive.event(input.fetch_ptm)
     def _fetch_ptm() -> None:
         accession = controller.accession.get()
+        log_action_button_click(LOGGER, "fetch_ptm", input.fetch_ptm())
         LOGGER.info("fetch_ptm requested accession=%s", accession or "-", extra={"event": "fetch_ptm"})
         if not accession:
+            LOGGER.warning("fetch_ptm blocked accession not set", extra={"event": "fetch_ptm"})
             controller.status.set("Set a UniProt accession first.")
             return
         dataframe = controller.service.fetch_ptms(accession)
@@ -282,8 +286,10 @@ def server(input, output, session):
     @reactive.event(input.fetch_variants)
     def _fetch_variants() -> None:
         accession = controller.accession.get()
+        log_action_button_click(LOGGER, "fetch_variants", input.fetch_variants())
         LOGGER.info("fetch_variants requested accession=%s", accession or "-", extra={"event": "fetch_variants"})
         if not accession:
+            LOGGER.warning("fetch_variants blocked accession not set", extra={"event": "fetch_variants"})
             controller.status.set("Set a UniProt accession first.")
             return
         dataframe = controller.service.fetch_variants(accession)
@@ -295,8 +301,10 @@ def server(input, output, session):
     @reactive.event(input.fetch_af)
     def _fetch_af() -> None:
         accession = controller.accession.get()
+        log_action_button_click(LOGGER, "fetch_af", input.fetch_af())
         LOGGER.info("fetch_af requested accession=%s", accession or "-", extra={"event": "fetch_af"})
         if not accession:
+            LOGGER.warning("fetch_af blocked accession not set", extra={"event": "fetch_af"})
             controller.status.set("Set a UniProt accession first.")
             return
         af_path = controller.service.download_alphafold_pdb(accession)
@@ -308,8 +316,10 @@ def server(input, output, session):
     @reactive.event(input.render_structure)
     def _render_structure() -> None:
         accession = controller.accession.get()
+        log_action_button_click(LOGGER, "render_structure", input.render_structure())
         LOGGER.info("render_structure requested accession=%s source=%s", accession or "-", input.structure_source(), extra={"event": "render_structure"})
         if not accession:
+            LOGGER.warning("render_structure blocked accession not set", extra={"event": "render_structure"})
             controller.status.set("Set a UniProt accession first.")
             return
 
@@ -319,11 +329,13 @@ def server(input, output, session):
         if source == "af":
             pdb_path = controller.af_path.get()
             if pdb_path is None:
+                LOGGER.warning("render_structure blocked alphafold missing", extra={"event": "render_structure"})
                 controller.status.set("Fetch AlphaFold first.")
                 return
         else:
             pdb_id = input.pdb_id().strip()
             if not pdb_id:
+                LOGGER.warning("render_structure blocked pdb id missing", extra={"event": "render_structure"})
                 controller.status.set("Provide a PDB ID for PDB source.")
                 return
             pdb_path = controller.service.download_pdb(pdb_id)
@@ -344,8 +356,10 @@ def server(input, output, session):
     @reactive.event(input.fetch_seq)
     def _fetch_seq() -> None:
         accession = controller.accession.get()
+        log_action_button_click(LOGGER, "fetch_seq", input.fetch_seq())
         LOGGER.info("fetch_seq requested accession=%s", accession or "-", extra={"event": "fetch_seq"})
         if not accession:
+            LOGGER.warning("fetch_seq blocked accession not set", extra={"event": "fetch_seq"})
             controller.status.set("Set a UniProt accession first.")
             return
         controller.b2b_html.set("")
@@ -359,8 +373,10 @@ def server(input, output, session):
     def _run_b2b() -> None:
         accession = controller.accession.get()
         sequence = controller.sequence.get()
+        log_action_button_click(LOGGER, "run_b2b", input.run_b2b())
         LOGGER.info("run_b2b requested accession=%s sequence_length=%s", accession or "-", len(sequence), extra={"event": "run_b2b"})
         if not accession or not sequence:
+            LOGGER.warning("run_b2b blocked sequence missing", extra={"event": "run_b2b"})
             controller.status.set("Fetch sequence first.")
             return
         
@@ -382,6 +398,7 @@ def server(input, output, session):
         normalized = bool(input.b2b_normalized())
         metric_column = _selected_b2b_metric_column(metric, normalized=normalized)
         af_path = controller.af_path.get()
+        log_action_button_click(LOGGER, "render_b2b_3d", input.render_b2b_3d())
         LOGGER.info(
             "render_b2b requested accession=%s metric=%s normalized=%s",
             accession or "-",
@@ -390,9 +407,11 @@ def server(input, output, session):
             extra={"event": "render_b2b"},
         )
         if dataframe is None or dataframe.empty or not metric or metric_column is None:
+            LOGGER.warning("render_b2b blocked prediction or metric missing", extra={"event": "render_b2b"})
             controller.status.set("Run predictions and choose a metric first.")
             return
         if af_path is None:
+            LOGGER.warning("render_b2b blocked alphafold missing", extra={"event": "render_b2b"})
             controller.b2b_html.set("")
             controller.status.set("Fetch AlphaFold first (tab 3).")
             return
@@ -413,6 +432,7 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.reset_b2b)
     def _reset_b2b() -> None:
+        log_action_button_click(LOGGER, "reset_b2b", input.reset_b2b())
         LOGGER.info("reset_b2b requested", extra={"event": "reset_b2b"})
         _reset_b2b_state()
         controller.status.set("Bio2Byte results cleared.")
@@ -421,8 +441,10 @@ def server(input, output, session):
     @reactive.event(input.rin_dl_af)
     def _rin_dl_af() -> None:
         accession = controller.accession.get()
+        log_action_button_click(LOGGER, "rin_dl_af", input.rin_dl_af())
         LOGGER.info("rin_dl_af requested accession=%s", accession or "-", extra={"event": "rin_dl_af"})
         if not accession:
+            LOGGER.warning("rin_dl_af blocked accession not set", extra={"event": "rin_dl_af"})
             controller.status.set("Set a UniProt accession first.")
             return
         path = controller.service.download_alphafold_pdb(accession)
@@ -433,6 +455,7 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.build_rin)
     def _build_rin() -> None:
+        log_action_button_click(LOGGER, "build_rin", input.build_rin())
         LOGGER.info("build_rin requested", extra={"event": "build_rin"})
         pdb_path = controller.service.resolve_uploaded_or_remote_pdb(
             input.rin_upload(),
@@ -442,6 +465,7 @@ def server(input, output, session):
             pdb_path = Path(controller.rin_path.get())
 
         if pdb_path is None:
+            LOGGER.warning("build_rin blocked pdb source missing", extra={"event": "build_rin"})
             controller.status.set("Provide a local PDB upload, an RCSB PDB ID, or download AlphaFold first.")
             return
 
@@ -472,6 +496,7 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.run_tmalign)
     def _run_tmalign() -> None:
+        log_action_button_click(LOGGER, "run_tmalign", input.run_tmalign())
         LOGGER.info("run_tmalign requested", extra={"event": "run_tmalign"})
         try:
             current_signature_1 = _tm_source_signature(input.tm_pdb1(), input.tm_pdb1_id().strip())
@@ -479,6 +504,7 @@ def server(input, output, session):
             f1 = controller.tm_input_1.get()
             f2 = controller.tm_input_2.get()
             if f1 is None or f2 is None:
+                LOGGER.warning("run_tmalign blocked structures not loaded", extra={"event": "run_tmalign"})
                 controller.tm_report.set("Load both structures first.")
                 controller.tm_html.set("")
                 return
@@ -487,6 +513,7 @@ def server(input, output, session):
                 or current_signature_2 != controller.tm_loaded_signature_2.get()
             ):
                 controller.tm_structures_loaded.set(False)
+                LOGGER.warning("run_tmalign blocked stale inputs", extra={"event": "run_tmalign"})
                 controller.tm_report.set("TM-align inputs changed. Reload both structures first.")
                 controller.tm_html.set("")
                 return
@@ -523,6 +550,7 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.load_tmalign_structures)
     def _load_tmalign_structures() -> None:
+        log_action_button_click(LOGGER, "load_tmalign_structures", input.load_tmalign_structures())
         LOGGER.info("load_tmalign_structures requested", extra={"event": "load_tmalign_structures"})
         controller.tm_html.set("")
         controller.tm_structures_loaded.set(False)
@@ -545,6 +573,7 @@ def server(input, output, session):
                 target_name="tm_input_2.pdb",
             )
             if f1 is None or f2 is None:
+                LOGGER.warning("load_tmalign_structures blocked missing structure input", extra={"event": "load_tmalign_structures"})
                 controller.tm_input_1.set(None)
                 controller.tm_input_2.set(None)
                 controller.tm_chain_ranges_1.set({})
@@ -658,8 +687,10 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.show_rin)
     def _show_rin() -> None:
+        log_action_button_click(LOGGER, "show_rin", input.show_rin())
         LOGGER.info("show_rin requested has_html=%s", bool(controller.rin_html.get()), extra={"event": "show_rin"})
         if not controller.rin_html.get():
+            LOGGER.warning("show_rin blocked no rin html", extra={"event": "show_rin"})
             controller.status.set("No RIN HTML yet. Build RIN first.")
 
     @render.text

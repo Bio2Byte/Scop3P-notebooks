@@ -123,3 +123,31 @@ docker compose logs -f structure-viz
 docker compose logs -f mutation-effect
 docker compose logs -f scop3p-toolkit
 ```
+
+Each service also writes the same Python logging records to a timestamped file inside
+`/var/log/scop3p_toolkit` in the container. Docker Compose mounts that directory to
+service-specific host paths:
+
+- `logs/peptide-mapper/`
+- `logs/structure-viz/`
+- `logs/mutation-effect/`
+- `logs/scop3p-toolkit/`
+
+The log filename is `scop3p_toolkit_log_<date stamp>.log`. Each mounted directory
+also contains `metadata.yml`, which records context-only FAIR execution metadata
+such as app name, session start time, image version/revision/build date, Python
+runtime, relevant package versions, and available external tools.
+
+Interactive clicks are logged explicitly. Shiny action buttons emit
+`event=action_button_click` with the button id and Shiny click count; the portal
+selector navbar emits `event=navbar_click` with the requested and selected app.
+
+Override the log location inside a container with `SCOP3P_LOG_DIR` if needed:
+
+```bash
+docker run --rm \
+  -e SCOP3P_LOG_DIR=/var/log/scop3p_toolkit \
+  -v "$(pwd)/logs/peptide-mapper:/var/log/scop3p_toolkit" \
+  -p 8001:8000 \
+  bio2byte/peptide-mapper:0.1.0
+```
