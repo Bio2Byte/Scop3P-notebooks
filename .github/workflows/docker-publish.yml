@@ -89,6 +89,8 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: docker.io/${{ steps.vars.outputs.image_repository }}
+          flavor: |
+            latest=false
           tags: |
             type=sha,format=short,prefix=sha-
             type=ref,event=tag
