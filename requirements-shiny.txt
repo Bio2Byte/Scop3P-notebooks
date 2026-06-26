@@ -1,0 +1,15 @@
+# Runtime
+shiny>=1.1,<2
+pandas>=2.1,<2.3
+requests>=2.31,<3
+numpy>=1.24,<3
+scipy>=1.10,<2
+networkx>=3.0,<4
+biopython>=1.81,<2
+py3Dmol>=2.5.3
+pyvis>=0.3.2,<0.4
+bokeh>=3.3,<4
+
+# Testing
+pytest>=8.0,<9
+httpx>=0.27,<1

@@ -1,5 +1,86 @@
 # Scop3P-notebooks
-Jupyter Notebook examples of Scop3P REST API services.
+Jupyter Notebook examples of Scop3P REST API services as well as ShinyApp/Voilà applications for the Scop3P-Toolkit.
+
+![GitHub License](https://img.shields.io/github/license/bio2byte/Scop3P-notebooks)
+![GitHub Release](https://img.shields.io/github/v/release/bio2byte/Scop3P-notebooks)
+![GitHub Tag](https://img.shields.io/github/v/tag/bio2byte/Scop3P-notebooks)
+![Docker Image Version](https://img.shields.io/docker/v/bio2byte/scop3p-toolkit)
+![Docker Image Size (tag)](https://img.shields.io/docker/image-size/bio2byte/scop3p-toolkit/latest)
+![Docker Pulls](https://img.shields.io/docker/pulls/bio2byte/scop3p-toolkit)
+![Website](https://img.shields.io/website?url=https%3A%2F%2Fiomics.ugent.be%2Fscop3p&up_message=Visit%20Sco3P)
+
+## Published container
+
+![https://hub.docker.com/r/bio2byte/scop3p-toolkit](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+
+This repository publishes the Galaxy-facing `bio2byte/scop3p-toolkit` container. The image packages the single-container portal exposed on port `8000` and is the intended entrypoint for a UseGalaxy interactive tool.
+
+- Docker image: `bio2byte/scop3p-toolkit`
+- Dockerfile target: `scop3p-toolkit`
+- App-specific documentation: [`apps/README.md`](/Users/adrian/workspace/vub/Scop3P-notebooks/apps/README.md)
+
+## Build and run the toolkit image
+
+Build the published image locally:
+
+```bash
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker build \
+  -f docker/Dockerfile \
+  -t bio2byte/scop3p-toolkit:local \
+  .
+```
+
+Run it locally:
+
+```bash
+docker run --rm -p 8000:8000 bio2byte/scop3p-toolkit:local
+```
+
+Then open `http://localhost:8000` to access the toolkit selector and launch the bundled interactive apps.
+
+## Continuous delivery to Docker Hub
+
+The GitHub Actions workflow lives in [`docker-publish.yml`](/Users/adrian/workspace/vub/Scop3P-notebooks/.github/workflows/docker-publish.yml) and has two stages:
+
+1. `Pytest suite`
+   Runs on pull requests, manual workflow dispatches, and version-tag pushes.
+   It installs the Python dependencies from `requirements-biophysics.txt` and `requirements-shiny.txt`, then runs:
+
+   ```bash
+   pytest tests/unit tests/integration
+   ```
+
+2. `Build and publish Docker image`
+   Runs only after the tests pass.
+
+   - On pull requests and `workflow_dispatch` runs:
+     - builds the `scop3p-toolkit` target for `linux/amd64`
+     - validates that the Docker image can be built
+     - does not publish anything to Docker Hub
+   - On version tags matching `v*`:
+     - builds the same image target
+     - logs in to Docker Hub
+     - publishes these tags:
+       - `latest`
+       - `sha-<short-commit>`
+       - `<git-tag>` such as `v1.2.3`
+
+The workflow resolves the Docker repository namespace in this order:
+
+1. `DOCKERHUB_NAMESPACE` repository variable
+2. `DOCKERHUB_USERNAME` repository secret
+3. the lowercased GitHub repository owner as a fallback for build-only runs
+
+Required repository secrets:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Optional repository variable:
+
+- `DOCKERHUB_NAMESPACE`
+
+If `DOCKERHUB_NAMESPACE` is not set, the workflow publishes to the same namespace as `DOCKERHUB_USERNAME`.
 
 ## About Scop3P[^1]
 
@@ -44,10 +125,9 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 | Notebook (JupyterLab) | Interactive app (Voilà) |
 |----------------------|--------------------------|
-| [![Open Notebook](https://img.shields.io/badge/Open-JupyterLab-orange?logo=jupyter)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-iatdk3tn/lab/tree/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/voila/render/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
-
-> ⚠️ **Chrome users**:  
-> Please open the *Notebook (JupyterLab)* link first to authenticate,  
+| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
+ 
+> If there is any launch error then please open the *Notebook (JupyterLab)* link first to authenticate,  
 > then launch the *Interactive app (Voilà)*.
 
 
@@ -66,9 +146,7 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 | Notebook (JupyterLab) | Interactive app (Voilà) |
 |----------------------|--------------------------|
-| [![Open Notebook](https://img.shields.io/badge/Open-JupyterLab-orange?logo=jupyter)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/lab/tree/notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/voila/render/notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) |
-
-> ⚠️ Chrome users: open the Notebook link first to authenticate, then launch the app.
+| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) |
 
 
 ### Peptide-to-structure mapping
@@ -85,10 +163,9 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 | Workflow | Notebook (JupyterLab) | Interactive app (Voilà) |
 |---------|------------------------|--------------------------|
-| Scop3P peptides | [![Open Notebook](https://img.shields.io/badge/Open-JupyterLab-orange?logo=jupyter)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/lab/tree/notebooks/Peptide_mapper_scop3p_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/voila/render/notebooks/Peptide_mapper_scop3p_voila.ipynb) |
-| Upload your own peptides | [![Open Notebook](https://img.shields.io/badge/Open-JupyterLab-orange?logo=jupyter)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/lab/tree/notebooks/Peptide_mapper_fileupload_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://hub.compomics.com/user/bio2byte-scop3p-notebooks-09tor0ec/voila/render/notebooks/Peptide_mapper_fileupload_voila.ipynb) |
+| Scop3P peptides | [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_scop3p_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_scop3p_voila.ipynb) |
+| Upload your own peptides | [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_fileupload_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_fileupload_voila.ipynb) |
 
-> ⚠️ Chrome users: open the Notebook link first to authenticate, then launch the app.
 
 ## About
 

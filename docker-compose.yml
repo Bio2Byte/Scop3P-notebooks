@@ -1,0 +1,48 @@
+services:
+  scop3p-toolkit:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: scop3p-toolkit
+    image: bio2byte/scop3p-toolkit:0.1.0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs/scop3p-toolkit:/var/log/scop3p_toolkit
+
+  peptide-mapper:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: peptide-mapper
+    image: bio2byte/peptide-mapper:0.1.0
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./logs/peptide-mapper:/var/log/scop3p_toolkit
+
+  structure-viz:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: structure-viz
+    image: bio2byte/structure-viz:0.1.0
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./logs/structure-viz:/var/log/scop3p_toolkit
+
+  mutation-effect:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: mutation-effect
+    image: bio2byte/mutation-effect:0.1.0
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./logs/mutation-effect:/var/log/scop3p_toolkit
