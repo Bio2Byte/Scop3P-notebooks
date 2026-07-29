@@ -1,0 +1,23 @@
+[
+ {"uniprot_position":105,"modification_name":"phosphorylation","modified_residue":"Phosphoserine",
+  "uniprot_residue_annotation":null,"best_probability":50,"number_of_projects":1,
+  "best_project":"PXD024548","evidence_code":null,"evidence_terms":null,"pubmed":null,
+  "source":"PRIDE","singly_phosphorylated":0,"grouped_tissue":"PXD024548=Pancreas",
+  "psites_disease_relevance":"PXD024548=Yes"},
+ {"uniprot_position":687,"modification_name":"phosphorylation","modified_residue":"Phosphotyrosine",
+  "uniprot_residue_annotation":"Phosphotyrosine; by autocatalysis","best_probability":98.6,
+  "number_of_projects":1,"best_project":"PXD025798","evidence_code":"ECO:0000269",
+  "evidence_terms":"Experimental","pubmed":"24560924","source":"UniProt, PRIDE",
+  "singly_phosphorylated":1,"grouped_tissue":"PXD025798=Kidney",
+  "psites_disease_relevance":"PXD025798=Yes"},
+ {"uniprot_position":905,"modification_name":"phosphorylation","modified_residue":"Phosphotyrosine",
+  "uniprot_residue_annotation":"Phosphotyrosine; by autocatalysis","best_probability":99.3,
+  "number_of_projects":1,"best_project":"PXD007237","evidence_code":"ECO:0000269",
+  "evidence_terms":"Experimental","pubmed":"14711813;16928683;20117004","source":"UniProt, PRIDE",
+  "singly_phosphorylated":1,"grouped_tissue":"PXD007237=Blood; Bone Marrow",
+  "psites_disease_relevance":"PXD007237=Yes"},
+ {"uniprot_position":1096,"modification_name":"phosphorylation","modified_residue":"Phosphothreonine",
+  "best_probability":98.8,"evidence_terms":"Experimental","pubmed":"14711813",
+  "source":"UniProt, PRIDE","grouped_tissue":"PXD007237=Blood","psites_disease_relevance":"No"},
+ {"uniprot_position":null,"modification_name":"phosphorylation","modified_residue":"Phosphoserine"}
+]
