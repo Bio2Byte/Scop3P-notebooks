@@ -15,7 +15,7 @@ pandas==2.1.4
 scipy==1.12.0
 networkx==3.6.1
 biopython==1.87
-requests==2.33.1
+requests>=2.31,<2.32
 scikit-learn==1.4.2
 torch==2.11.0
 b2bTools==3.0.8b3
