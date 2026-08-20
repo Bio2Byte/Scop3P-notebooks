@@ -121,23 +121,22 @@ This notebook enables interactive visualization of PTMs and disease variants by 
   <img src="data/images/Scop3P_training_Structure_PTM_RIN.png" width="750" alt="Scop3P structural, PTM and RIN overview">
 </p>
 
+<p align="center">
+  <img src="data/images/Scop3P_training_RINs.png" width="750" alt="Scop3P structural, PTM and RIN overview">
+</p>
+
 Click on the next link to open the Jupyter Notebook in an executable environment:
 
 | Notebook (JupyterLab) | Interactive app (Voilà) |
 |----------------------|--------------------------|
-| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
+| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
 
-| Notebook / Interactive app |
-|----------------------------|
-| [![Launch Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
-
-> **Interactive app:** Launch the notebook in Binder first, then click the **Voilà Preview** icon in JupyterLab to open the interactive app.
  
-> If there is any launch error then please open the *Notebook (JupyterLab)* link first to authenticate,  
-> then launch the *Interactive app (Voilà)*.
+> **Interactive app:** If there is any launch error then please open the *Notebook (JupyterLab)* link first to authenticate,  
+> then launch the *Interactive app (Voilà)* by clicking the voila icon on top right corner.
 
 
-### Biophysical prediction and mutation effects
+### Biophysical prediction and mutation effect analysis
 
 This notebook predicts sequence-based biophysical properties of proteins from a UniProt ID and visualizes them using interactive plots. Users can introduce one or multiple amino-acid mutations, re-compute the predictions on the mutated sequence, and directly compare wild-type and mutant profiles. A final inference step summarizes the impact of mutations based on changes in predicted biophysical properties.Simple notebook fetching modifications for UniProt ID [O00571](https://www.uniprot.org/uniprotkb/O00571/entry) (O00571 · DDX3X_HUMAN), predicting the biophysical properties and visualizing the results using different strategies.
 
@@ -152,12 +151,12 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 | Notebook (JupyterLab) | Interactive app (Voilà) |
 |----------------------|--------------------------|
-| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) |
+| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) |
 
 
-### Peptide-to-structure mapping
+### Structural localisation of mass spectrometry-derived peptides
 
-Interactive mapping of phosphopeptides—either fetched from Scop3P or uploaded by the user onto AlphaFold structures to visualize peptide coverage and modification sites.
+Interactive mapping of phosphopeptides, either fetched from Scop3P or uploaded by the user onto AlphaFold structures to visualize peptide coverage and modification sites.
 
 #### Mapping phosphopeptides onto protein structures
 
@@ -169,9 +168,41 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 | Workflow | Notebook (JupyterLab) | Interactive app (Voilà) |
 |---------|------------------------|--------------------------|
-| Scop3P peptides | [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_scop3p_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_scop3p_voila.ipynb) |
-| Upload your own peptides | [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_fileupload_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_fileupload_voila.ipynb) |
+| Scop3P peptides | [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_scop3p_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_scop3p_voila.ipynb) |
+| Upload your own peptides | [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_fileupload_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_fileupload_voila.ipynb) |
 
+
+### Residue interaction network analysis and alignment
+
+This notebook generates residue interaction networks (RINs) from experimental structures, AlphaFold models, or user-supplied structures, with PTMs, variants, and biophysical properties mapped onto network nodes. It also compares RINs across structures or proteins to identify conserved, lost, and gained residue contacts and explore network rewiring associated with conformational changes or amino-acid substitutions.
+
+#### Interactive residue interaction network analysis and comparison
+
+<p align="center">
+  <img src="data/images/RINAlign.png" width="750" alt="Residue interaction network analysis and alignment">
+</p>
+
+Click on the next link to open the Jupyter Notebook in an executable environment:
+
+| Notebook (JupyterLab) | Interactive app (Voilà) |
+|----------------------|--------------------------|
+| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/RINAlign_align_and compare_networks.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/RINAlign_align_and compare_networks.ipynb) |
+
+### Secondary-structure topology and interactive 3D visualization
+
+This notebook generates two-dimensional secondary-structure topology diagrams from experimental structures or AlphaFold models, with PTMs and disease variants mapped directly onto the corresponding residues. Multiple topology layouts are supported, and the diagram is linked interactively to a 3D structure viewer, allowing topology elements and annotated sites to be explored across both representations.
+
+#### Interactive secondary-structure topology linked to 3D protein structure
+
+<p align="center">
+  <img src="data/images/topology.png" width="750" alt="Secondary-structure topology and interactive 3D visualization">
+</p>
+
+Click on the next link to open the Jupyter Notebook in an executable environment:
+
+| Notebook (JupyterLab) | Interactive app (Voilà) |
+|----------------------|--------------------------|
+| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/topology_viewer/topology_viewer.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks//topology_viewer/topology_viewer.ipynb) |
 
 ## About
 
