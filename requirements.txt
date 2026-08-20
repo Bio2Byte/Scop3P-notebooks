@@ -1,23 +1,25 @@
 # Core
 voila==0.5.8
-ipython>=8.0,<9
+ipython==9.12.0
 
 # Widgets + 3D viewers
-ipywidgets>=8.1,<9
+ipywidgets==8.1.8
 widgetsnbextension>=4.0,<5
 jupyterlab_widgets>=3.0,<4
-nglview>=3.0.8
-py3Dmol>=2.5.3
+nglview==3.1.4
+py3Dmol==2.5.4
 
 # Data / science
-numpy>=1.24,<3
-pandas>=2.1,<2.3
-scipy>=1.10,<2
-networkx>=3.0,<4
-biopython>=1.81,<2
-requests>=2.31,<3
+numpy==1.26.4
+pandas==2.1.4
+scipy==1.12.0
+networkx==3.6.1
+biopython==1.87
+requests==2.33.1
+scikit-learn==1.4.2
+torch==2.11.0
 b2bTools==3.0.8b3
 
 # Visualization
-pyvis>=0.3.2,<0.4
-bokeh>=3.3,<4
+pyvis==0.3.2
+bokeh==3.9.0
