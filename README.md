@@ -134,7 +134,7 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 > **Interactive app:** Launch the notebook in Binder first, then click the **Voilà Preview** icon in JupyterLab to open the interactive app.
  
 > If there is any launch error then please open the *Notebook (JupyterLab)* link first to authenticate,  
-> then launch the *Interactive app (Voilà)*.
+> then launch the *Interactive app (Voilà)*
 
 
 ### Biophysical prediction and mutation effects
