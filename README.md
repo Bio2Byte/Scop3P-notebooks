@@ -188,6 +188,8 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 |----------------------|--------------------------|
 | [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/RINAlign_align_and_compare_networks.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/RINAlign_align_and_compare_networks.ipynb) |
 
+> **P.S** This workflow is available as notebook environment only and not as Voila application !!
+
 ### Secondary-structure topology and interactive 3D visualization
 
 This notebook generates two-dimensional secondary-structure topology diagrams from experimental structures or AlphaFold models, with PTMs and disease variants mapped directly onto the corresponding residues. Multiple topology layouts are supported, and the diagram is linked interactively to a 3D structure viewer, allowing topology elements and annotated sites to be explored across both representations.
