@@ -186,7 +186,7 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 | Notebook (JupyterLab) | Interactive app (Voilà) |
 |----------------------|--------------------------|
-| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/RINAlign_align_and compare_networks.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/RINAlign_align_and compare_networks.ipynb) |
+| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/RINAlign_align_and_compare_networks.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/RINAlign_align_and_compare_networks.ipynb) |
 
 ### Secondary-structure topology and interactive 3D visualization
 
@@ -202,7 +202,7 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 | Notebook (JupyterLab) | Interactive app (Voilà) |
 |----------------------|--------------------------|
-| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/topology_viewer/topology_viewer.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks//topology_viewer/topology_viewer.ipynb) |
+| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/topology_viewer/topology_viewer.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD urlpath=voila/render/notebooks//topology_viewer/topology_viewer.ipynb) |
 
 ## About
 
