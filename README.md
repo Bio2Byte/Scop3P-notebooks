@@ -93,7 +93,7 @@ Journal of Proteome Research 2020 19 (8), 3478-3486. [DOI: 10.1021/acs.jproteome
 
 **HTTP REST API**
 
-Open the **Scop3P API** using the Swagger UI click [here](https://iomics.ugent.be/scop3p/swagger-ui/index.html)
+Open the **Scop3P API** using the Swagger UI click [here](https://iomics.ugent.be/scop3p/api/v1/docs)
 
 ## Jupyter Notebook index
 
@@ -111,7 +111,7 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 
 [![Launch Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/main?filepath=Scop3P_API.ipynb)
 
-### Structural and biophysical visualization framework
+### Structure-guided analysis of PTMs and variants
 
 This notebook enables interactive visualization of PTMs and disease variants by integrating Scop3P and UniProt data with 3D structural mapping onto PDB and AlphaFold models. It supports biophysical property prediction, residue interaction network (RIN) analysis, and structural alignment to explore PTM-driven structural and functional effects.
 
@@ -126,6 +126,12 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 | Notebook (JupyterLab) | Interactive app (Voilà) |
 |----------------------|--------------------------|
 | [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
+
+| Notebook / Interactive app |
+|----------------------------|
+| [![Launch Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_PTM_structure_viz_voila_app.ipynb) |
+
+> **Interactive app:** Launch the notebook in Binder first, then click the **Voilà Preview** icon in JupyterLab to open the interactive app.
  
 > If there is any launch error then please open the *Notebook (JupyterLab)* link first to authenticate,  
 > then launch the *Interactive app (Voilà)*.
