@@ -417,13 +417,21 @@ body {
     linear-gradient(180deg, #f8f5ef 0%, #eef3f7 100%);
   color: var(--scop3p-ink);
 }
+/* One width for the whole layout, so the content cards line up with the navbar above
+   them. They used to disagree -- the shell capped at 1600px while the portal navbar
+   allowed 1800px -- which left the content visibly narrower than the bar over it and
+   wasted a band down each side of a wide screen. Declared as a custom property because
+   the navbar CSS is injected separately by the portal and has to reach the same value. */
+:root {
+  --scop3p-max-width: 1920px;
+}
 .scop3p-shell {
-  max-width: 1600px;
+  max-width: var(--scop3p-max-width);
   margin: 0 auto;
   padding: 0 10px 32px;
 }
 .scop3p-hero {
-  max-width: 1600px;
+  max-width: var(--scop3p-max-width);
   margin: 0 auto;
   padding: 20px 10px 18px;
 }

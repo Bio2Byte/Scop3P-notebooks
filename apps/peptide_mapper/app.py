@@ -112,7 +112,19 @@ app_ui = scop3p_shell(
         }
         .pm-main-grid {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          /* Controls take what they need, the viewer takes the rest -- the same shape as
+             RIN Alignment (420px) and Topology Viewer (360px). An even 1fr/1fr split left
+             the controls column only 71% full on a wide screen while the structure viewer,
+             which can use every pixel, got no more than the form did. The lower bound keeps
+             the button grid and the mods column side by side on a laptop; the upper bound
+             stops the form stretching once it has all the room it needs.
+
+             clamp() on a percentage rather than minmax(min, max): with a fixed upper bound
+             the form claimed its full 720px as soon as it fitted, which at 1300px left the
+             viewer only 503px -- narrower than the controls, for the pane that actually
+             needs the room. A percentage keeps the viewer the larger of the two at every
+             width above the single-column breakpoint. */
+          grid-template-columns: clamp(480px, 38%, 700px) minmax(0, 1fr);
           gap: 18px;
           align-items: stretch;
         }
