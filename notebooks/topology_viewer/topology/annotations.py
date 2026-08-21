@@ -700,12 +700,12 @@ def fetch_sites(accession: str, include_variants: bool = True) -> Tuple[List[Sit
     uniprot: List[Site] = []
     variants: List[Site] = []
 
-    try:
-        url = f"{SCOP3P_MODS}?{urllib.parse.urlencode({'accession': accession})}"
-        scop3p = parse_scop3p(_get_json(url))
-    except ValueError as error:
-        # Scop3P covers human phosphoproteins; anything else legitimately misses.
-        notes.append(f"Scop3P unavailable ({error}). UniProt features used instead.")
+    # Via the shared helper, which tries v1 before the retired query-parameter form.
+    # Calling SCOP3P_MODS directly here used to reach the single-page-app catch-all,
+    # which answers 200 with HTML.
+    scop3p, scop3p_note = _fetch_scop3p_modifications(accession)
+    if scop3p_note:
+        notes.append(scop3p_note)
 
     try:
         uniprot = parse_uniprot_ptms(_get_json(UNIPROT_ENTRY.format(accession=accession)))

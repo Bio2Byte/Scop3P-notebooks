@@ -22,7 +22,6 @@ _DEPENDENCIES = (
     "pyvis",
     "bokeh",
     "b2bTools",
-    "scop3p",
 )
 _TOOL_PROBES = {
     "TM-align": ("TM-align",),
@@ -37,18 +36,26 @@ def write_metadata(
     log_file_path: Path,
     log_dir: Path,
     session_started_at: str,
+    trail_file_path: Path | None = None,
 ) -> Path:
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     payload = build_metadata(
         log_file_path=log_file_path,
         log_dir=log_dir,
         session_started_at=session_started_at,
+        trail_file_path=trail_file_path,
     )
     metadata_path.write_text(_to_yaml(payload), encoding="utf-8")
     return metadata_path
 
 
-def build_metadata(*, log_file_path: Path, log_dir: Path, session_started_at: str) -> dict[str, Any]:
+def build_metadata(
+    *,
+    log_file_path: Path,
+    log_dir: Path,
+    session_started_at: str,
+    trail_file_path: Path | None = None,
+) -> dict[str, Any]:
     return {
         "schema_version": "1.0",
         "application": {
@@ -61,6 +68,9 @@ def build_metadata(*, log_file_path: Path, log_dir: Path, session_started_at: st
             "working_directory": str(Path.cwd()),
             "log_directory": str(log_dir),
             "log_file": str(log_file_path),
+            # The step-by-step experiment record, recorded separately so a run can be
+            # handed over as a standalone document.
+            "trail_file": str(trail_file_path) if trail_file_path else None,
         },
         "image": {
             "title": os.getenv("SCOP3P_IMAGE_TITLE", "Scop3P-Toolkit"),

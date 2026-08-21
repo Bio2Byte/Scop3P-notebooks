@@ -4,7 +4,7 @@
 - `notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb`
 
 ## Functional scope
-- Load a UniProt accession.
+- Load a UniProtKB accession.
 - Fetch the WT sequence from UniProt.
 - Fetch Scop3P PTM annotations for the same accession.
 - Run Bio2Byte single-sequence predictions for:
@@ -26,7 +26,7 @@
 - Notebook tab `WT prediction` -> Shiny tab `1) WT prediction`
 - Notebook tab `Mutant prediction` -> Shiny tab `2) Mutant prediction`
 - Notebook tab `Inference` -> Shiny tab `3) Inference`
-- `ipywidgets.Text` for accession -> `ui.input_text("accession", ...)`
+- `ipywidgets.Text` for accession -> `ui.input_text("accession", ACCESSION_LABEL)` in a `scop3p_field_row`, plus a Load example button
 - `ipywidgets.Text` for mutation positions and target amino acids -> `ui.input_text(...)`
 - `ipywidgets.Button` actions -> `ui.input_action_button(...)`
 - Voilà output areas -> `render.ui` sections backed by reactive state
@@ -50,3 +50,12 @@
 - Mutation parsing and application errors are surfaced clearly.
 - Merged WT-vs-mutant table keeps mutated positions highlighted.
 - Inference output is generated only after both WT and mutant predictions exist.
+
+## Shared UI conventions
+
+This app uses the toolkit-wide vocabulary from `apps/common/ui_shell.py`: the accession
+field is labelled **UniProtKB accession** (`ACCESSION_LABEL`), it sits in a
+`scop3p_field_row` so its buttons share the input's baseline, and it carries a
+**Load example** button wired to this app's `EXAMPLE_ACCESSION`. Result cards stretch to
+the height of their controls card. See "Shared UI Vocabulary" in
+[`apps/README.md`](../../apps/README.md).

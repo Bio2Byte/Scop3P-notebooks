@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from common.logging_utils import configure_logging, get_log_file_path, get_metadata_path
+import pytest
 from shiny import App
 from starlette.testclient import TestClient
 
+from help.app import PROTOCOLS, app as help_app
 from mutation_effect.app import app as mutation_effect_app
 from peptide_mapper.app import app as peptide_mapper_app
-from portal.main import app as portal_app
+from portal.main import APP_OPTIONS, app as portal_app
+from rinalign.app import app as rinalign_app
 from structure_viz.app import app as structure_viz_app
+from topology_viewer.app import app as topology_viewer_app
 
 
 def test_peptide_mapper_app_constructs() -> None:
@@ -20,6 +26,49 @@ def test_structure_viz_app_constructs() -> None:
 
 def test_mutation_effect_app_constructs() -> None:
     assert isinstance(mutation_effect_app, App)
+
+
+def test_topology_viewer_app_constructs() -> None:
+    assert isinstance(topology_viewer_app, App)
+
+
+def test_rinalign_app_constructs() -> None:
+    assert isinstance(rinalign_app, App)
+
+
+def test_help_app_constructs() -> None:
+    assert isinstance(help_app, App)
+
+
+def test_help_documents_every_protocol_app() -> None:
+    """The Help page has to keep up with the navbar.
+
+    Every app in APP_OPTIONS except Help itself must have a card, and every Help card
+    must point at a real app key -- otherwise Help either hides a tool or offers a
+    dead link.
+    """
+    documented = {protocol.key for protocol in PROTOCOLS}
+    registered = set(APP_OPTIONS) - {"help"}
+    assert documented == registered, (
+        f"undocumented: {sorted(registered - documented)}, "
+        f"stale in Help: {sorted(documented - registered)}"
+    )
+
+
+def test_help_cards_are_substantive() -> None:
+    """Guards against a protocol being added with placeholder text."""
+    for protocol in PROTOCOLS:
+        assert protocol.question.endswith("?"), protocol.key
+        assert len(protocol.mission) > 80, protocol.key
+        assert len(protocol.scope) >= 3, protocol.key
+        assert len(protocol.use_cases) >= 3, protocol.key
+        assert protocol.spec.startswith("docs/use-cases/"), protocol.key
+
+
+def test_help_spec_links_point_at_real_files() -> None:
+    root = Path(__file__).resolve().parents[2]
+    for protocol in PROTOCOLS:
+        assert (root / protocol.spec).is_file(), f"{protocol.key}: missing {protocol.spec}"
 
 
 def test_portal_app_constructs() -> None:
@@ -39,6 +88,40 @@ def test_portal_root_selector_and_cookie() -> None:
     assert selected_response.status_code == 200
     assert "Structure Visualisation" in selected_response.text
     assert "scop3p_app=structure-viz" in selected_response.headers["set-cookie"]
+
+    # Every registered app must appear in the injected navbar, whichever app is
+    # being served. This is what catches an APP_OPTIONS entry that was forgotten.
+    for label, _icon, _app in APP_OPTIONS.values():
+        assert label in default_response.text, f"{label} is missing from the navbar"
+
+
+@pytest.mark.parametrize("key", sorted(APP_OPTIONS))
+def test_portal_serves_every_registered_app(key: str) -> None:
+    label = APP_OPTIONS[key][0]
+    client = TestClient(portal_app)
+    response = client.get(f"/?app={key}")
+    assert response.status_code == 200
+    assert label in response.text
+    assert f"scop3p_app={key}" in response.headers["set-cookie"]
+
+
+def test_new_apps_are_registered_in_the_portal() -> None:
+    """They are unreachable in the published all-in-one image otherwise."""
+    assert APP_OPTIONS["topology-viewer"][2] is topology_viewer_app
+    assert APP_OPTIONS["rinalign"][2] is rinalign_app
+
+
+def test_topology_bridge_resolves_in_a_checkout() -> None:
+    """The Topology Viewer app is useless if the bridge cannot find the package.
+
+    Fails loudly if notebooks/topology_viewer moves, or if apps/common is relocated
+    and the bridge's parents[2] arithmetic stops pointing at the repository root.
+    """
+    from common.topology_bridge import TOPOLOGY_ERROR, __topology_version__, build_view
+
+    assert TOPOLOGY_ERROR is None, TOPOLOGY_ERROR
+    assert callable(build_view)
+    assert __topology_version__
 
 
 def test_portal_logging_metadata_configured() -> None:

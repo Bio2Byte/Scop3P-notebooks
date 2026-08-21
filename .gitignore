@@ -160,3 +160,12 @@ cython_debug/
 #.idea/
 
 .DS_Store
+
+# Runtime output written by the Shiny apps
+af_cache/
+exports/
+logs/
+
+# Local dev tooling (dev-server definitions with environment-specific paths).
+# apps/README.md documents the portable `PYTHONPATH=apps shiny run ...` equivalents.
+.claude/

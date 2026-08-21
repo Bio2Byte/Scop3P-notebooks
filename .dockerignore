@@ -13,3 +13,7 @@ exports/
 *.pyc
 *.pyo
 *.pyd
+
+# Do NOT ignore notebooks/: docker/Dockerfile.base copies
+# notebooks/topology_viewer/topology into the image for the Topology Viewer app.
+# Excluding it breaks the build with a bare "not found" on that path.

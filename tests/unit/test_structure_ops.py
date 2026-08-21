@@ -75,7 +75,7 @@ def test_run_tmalign_finds_existing_candidate(monkeypatch, tmp_path: Path) -> No
         assert cwd == tmp_path
         return _Result()
 
-    monkeypatch.setattr("apps.common.structure_viz.subprocess.run", _mock_run)
+    monkeypatch.setattr("common.structure_viz.subprocess.run", _mock_run)
 
     path, report = StructureOps.run_tmalign(pdb1, pdb2, tmp_path, out_name="aligned")
     assert path == aligned
@@ -93,7 +93,7 @@ def test_run_tmalign_raises_runtime_error_with_subprocess_output(monkeypatch, tm
         error.stderr = "segmentation fault"
         raise error
 
-    monkeypatch.setattr("apps.common.structure_viz.subprocess.run", _mock_run)
+    monkeypatch.setattr("common.structure_viz.subprocess.run", _mock_run)
 
     with pytest.raises(RuntimeError, match="segmentation fault"):
         StructureOps.run_tmalign(pdb1, pdb2, tmp_path, out_name="aligned")
@@ -156,7 +156,7 @@ def test_download_pdb_uses_uppercase_2ivt_url(monkeypatch, tmp_path: Path) -> No
         assert url == "https://files.rcsb.org/download/2IVT.pdb"
         return _Response()
 
-    monkeypatch.setattr("apps.common.structure_viz.requests.get", _mock_get)
+    monkeypatch.setattr("common.structure_viz.requests.get", _mock_get)
 
     downloaded = service.download_pdb("2ivt")
     assert downloaded.name == "2IVT.pdb"

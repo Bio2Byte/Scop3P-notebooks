@@ -23,6 +23,29 @@ python3 test_topology.py           # 84 assertions, all passing
 python3 preview.py fixtures/big.pdb
 ```
 
+
+## Shiny app
+
+`apps/topology_viewer/app.py` is a second consumer of this package. It replaces the
+`ipywidgets` layer in `topology/app.py::make_app` with Shiny reactives and calls
+`build_view()` directly; the pipeline, the renderer and every line of browser code are
+shared, unmodified.
+
+**Do not move this package.** It stays here as the single source of truth for the
+notebook, this directory's `test_topology.py`, and the Shiny app.
+`apps/common/topology_bridge.py` locates it — via `$SCOP3P_TOPOLOGY_PATH`, then
+`/opt/scop3p/topology_viewer` inside the container, then this directory in a source
+checkout — and `docker/Dockerfile` copies it to the container path.
+
+`make_app` is unchanged and remains the notebook and Voilà entry point.
+
+Since the last revision of this file, the 3D viewer integration listed under
+"Not yet verified" **has** been executed against the live CDNs. Both adapters work. One
+real bug surfaced: the Mol* pin `molstar@4.19.0` does not exist on npm, so selecting
+Mol* always failed; it is now `4.18.0`. That bundle exports only `Viewer` and
+`ViewerAutoPreset`, so `_buildIndex`'s `OrderedSet` probes miss and the adapter takes
+the documented fallback selection path, which the status line reports.
+
 ## What changed
 
 **Uploads accept structures, not DSSP.** The old uploader listed

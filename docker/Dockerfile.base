@@ -1,0 +1,142 @@
+# syntax=docker/dockerfile:1.7
+#
+# Scop3P-Toolkit base image: the Python environment, the external binaries and the
+# application code. It deliberately declares NO CMD and selects NO app, so it cannot
+# be started on its own and cannot be mistaken for a runnable app image.
+#
+# Each app is a separate one-line image built FROM this one; see docker/apps/*.Dockerfile
+# and the Makefile. That replaces the previous single multi-stage Dockerfile, where the
+# app you got from `docker build` depended on which leaf stage happened to be last.
+#
+#   make base          build this image
+#   make apps          build every app image from it
+#   make scan          scan it for vulnerabilities
+#
+# Base image is pinned by digest so a scan result is reproducible and an upstream retag
+# cannot silently change what ships. python:3.12-slim is Debian 13 (trixie), Python
+# 3.12.14. Refresh the digest deliberately, and re-run `make scan` when you do.
+#
+# Python 3.12 is not a free choice: b2bTools declares requires_python <3.13, and its
+# torch~=2.2.2 pin has no cp313 wheels.
+ARG PYTHON_BASE=python:3.12-slim@sha256:2c941e860699f878900b0edc2403613c234d4b32eda3cc9fa7036991a2a63c4a
+
+# ---------------------------------------------------------------------------
+# builder: resolve the virtualenv only. Discarded afterwards; just /opt/venv is kept.
+# ---------------------------------------------------------------------------
+FROM ${PYTHON_BASE} AS builder
+
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:$PATH \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# No compilers: every pinned dependency ships a manylinux wheel, which
+# --only-binary=:all: below enforces. If that ever stops being true the build fails
+# loudly here rather than silently growing a toolchain back into the image.
+RUN python -m venv "$VIRTUAL_ENV" && "$VIRTUAL_ENV/bin/pip" install -U pip
+
+COPY requirements-biophysics.txt /tmp/requirements-biophysics.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    "$VIRTUAL_ENV/bin/pip" install --only-binary=:all: -r /tmp/requirements-biophysics.txt
+
+COPY requirements-shiny.txt /tmp/requirements-shiny.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    "$VIRTUAL_ENV/bin/pip" install --only-binary=:all: -r /tmp/requirements-shiny.txt
+
+# ---------------------------------------------------------------------------
+# base: the runtime every app image inherits.
+# ---------------------------------------------------------------------------
+FROM ${PYTHON_BASE} AS base
+
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION=dev
+
+LABEL org.opencontainers.image.title="Scop3P-Toolkit base" \
+    org.opencontainers.image.description="Shared runtime for the Scop3P-Toolkit app images. Not runnable on its own." \
+    org.opencontainers.image.url="https://github.com/Bio2Byte/Scop3P-notebooks" \
+    org.opencontainers.image.source="https://github.com/Bio2Byte/Scop3P-notebooks" \
+    org.opencontainers.image.licenses="Apache-2.0" \
+    org.opencontainers.image.version="${VERSION}" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.created="${BUILD_DATE}"
+
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:$PATH \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/apps \
+    SCOP3P_LOG_DIR=/var/log/scop3p_toolkit \
+    SCOP3P_IMAGE_TITLE=Scop3P-Toolkit \
+    SCOP3P_IMAGE_VERSION=${VERSION} \
+    SCOP3P_IMAGE_REVISION=${VCS_REF} \
+    SCOP3P_IMAGE_CREATED=${BUILD_DATE} \
+    SCOP3P_IMAGE_SOURCE=https://github.com/Bio2Byte/Scop3P-notebooks \
+    SCOP3P_IMAGE_LICENSE=Apache-2.0
+
+# Patch the distro, then strip perl.
+#
+# Measured with trivy against python:3.12-slim (Debian 13 trixie):
+#
+#   as shipped                              4 CRITICAL, 49 HIGH
+#   + apt-get upgrade                        4 CRITICAL, 13 HIGH
+#   + perl-base removed                      0 CRITICAL,  9 HIGH
+#
+# All four CRITICALs are in perl-base and none has a fix available upstream, so an
+# upgrade alone cannot clear them. Nothing in this image executes perl: hmmer is a C
+# binary, TM-align is a static binary, and no app shells out to perl. t-coffee was the
+# only perl consumer and no app invokes it either -- it appeared solely in
+# session_metadata.py's version-probe table, which degrades to a null entry when a
+# binary is absent. So perl goes, and metadata.yml simply records t_coffee as absent.
+#
+# --allow-remove-essential is required because Debian flags perl-base as essential.
+# Removal must come last, after every apt install, since some maintainer scripts need
+# perl. Re-run `make scan` after touching this block.
+# RUN apt-get update && \
+#     apt-get -y --no-install-recommends upgrade && \
+#     # apt-get install -y --no-install-recommends hmmer && \
+#     apt-get -y --allow-remove-essential remove perl-base && \
+#     apt-get -y autoremove && \
+#     rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system scop3p && \
+    useradd --system --gid scop3p --create-home --home-dir /home/scop3p scop3p && \
+    mkdir -p /apps /tmp/scop3p /var/log/scop3p_toolkit && \
+    chown -R scop3p:scop3p /apps /tmp/scop3p /home/scop3p /var/log/scop3p_toolkit
+
+RUN printf '%s\n' 'export VIRTUAL_ENV=/opt/venv' 'export PATH=/opt/venv/bin:$PATH' > /etc/profile.d/scop3p-venv.sh
+
+WORKDIR /apps
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --chmod=755 TM-align /usr/local/bin/TM-align
+
+# The topology viewer package stays in notebooks/ as the single source of truth,
+# shared with the Voila notebook and its standalone test script. It is copied here,
+# OUTSIDE /apps, so a dev bind-mount over /apps cannot mask it and so it is never
+# mistaken for an app package. apps/common/topology_bridge.py finds it at this path;
+# SCOP3P_TOPOLOGY_PATH overrides. Deliberately NOT added to PYTHONPATH -- the bridge
+# must take the same resolution path in the image as it does locally and in CI, or a
+# broken bridge would ship green. No --chown: root-owned and world-readable is right
+# for a library, and PYTHONDONTWRITEBYTECODE=1 means no __pycache__ write is tried.
+COPY ./notebooks/topology_viewer/topology /opt/scop3p/topology_viewer/topology
+
+# Drop pip from the runtime. Nothing installs packages at run time, and pip carries a
+# vendored copy of msgpack and urllib3 that scanners flag with no way to patch them
+# independently. setuptools is kept, because libraries still import pkg_resources.
+# Must come after the venv COPY above.
+RUN rm -rf /usr/local/lib/python3.12/site-packages/pip \
+           /usr/local/lib/python3.12/site-packages/pip-*.dist-info \
+           /usr/local/lib/python3.12/ensurepip \
+           /opt/venv/lib/python3.12/site-packages/pip \
+           /opt/venv/lib/python3.12/site-packages/pip-*.dist-info
+
+# Last, because apps/ changes on nearly every commit and everything above it caches.
+COPY --chown=scop3p:scop3p ./apps .
+
+EXPOSE 8000
+
+USER scop3p
+
+# No CMD on purpose. `docker run` on this image drops into the Python REPL rather than
+# pretending to be an app; the app images supply the entrypoint.

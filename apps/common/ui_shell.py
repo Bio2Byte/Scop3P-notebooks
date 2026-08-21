@@ -46,6 +46,60 @@ def _footer_logo_tags() -> list[ui.Tag]:
     return tags
 
 
+#: The one name for a UniProt identifier field, used by every app. Previously each app
+#: invented its own -- "ACC_ID (UniProt accession number)", "UniProt",
+#: "UniProt accession (AlphaFold DB / PDBe)" -- which made the toolkit read as five
+#: unrelated tools. Change it here and every app follows.
+ACCESSION_LABEL = "UniProtKB accession"
+
+
+def scop3p_structure_picker(input_id: str, label: str, choices: dict[str, str]):
+    """A searchable single-select for choosing a structure.
+
+    Searchable rather than a plain ``<select>`` because the option count follows the
+    protein, not the interface: P04637 (p53) yields 629 selectable chains, and scanning
+    that many entries by eye is not a real option. Typing "2IVT" or "1.0 A" narrows it
+    immediately.
+
+    Selectize is configured to behave like a picker rather than a tag editor: no free
+    text, and no remove button, because clearing the only selection would leave the app
+    with no structure at all. Every caller must update it with ``ui.update_selectize`` --
+    ``ui.update_select`` targets a different client-side widget and fails silently, which
+    looks exactly like an upstream returning nothing.
+    """
+    return ui.input_selectize(
+        input_id,
+        label,
+        choices=choices,
+        multiple=False,
+        remove_button=False,
+        options={"placeholder": "Type to filter structures"},
+    )
+
+
+def scop3p_field_row(*children: ui.TagChild, extra_class: str = "") -> ui.Tag:
+    """Put an input and its buttons on one baseline.
+
+    Shiny renders a text input as a label above a control with a margin below it,
+    while an action button has no label. Dropped into adjacent grid columns the
+    button therefore floats above the input it belongs to. This row pins every
+    child to the bottom edge and drops the trailing margin, so controls line up.
+    """
+    classes = "scop3p-field-row"
+    if extra_class:
+        classes = f"{classes} {extra_class}"
+    return ui.div(*children, class_=classes)
+
+
+def scop3p_example_button(input_id: str, label: str = "Load example") -> ui.Tag:
+    """A quiet button that fills the adjacent input with a worked example.
+
+    Every accession field documents an example in its placeholder; this makes that
+    example usable in one click instead of something to retype.
+    """
+    return ui.input_action_button(input_id, label, class_="scop3p-example-btn")
+
+
 def scop3p_shell(app_name: str, intro: str, *children: ui.TagChild) -> ui.Tag:
     return ui.page_fluid(
         ui.tags.style(_SCOP3P_CSS),
@@ -227,11 +281,57 @@ body {
   color: #684a17;
   font-weight: 600;
 }
+/* Columns stretch to a common height, so a results card is never a short box
+   floating beside a tall controls card. Grid items stretch by default; the point is
+   that we do NOT set align-items:start here. */
 .scop3p-two-col {
   display: grid;
   grid-template-columns: 420px minmax(0, 1fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
+}
+/* A card that is a grid or flex child fills the space it is given. */
+.scop3p-two-col > .scop3p-card,
+.scop3p-header-grid > .scop3p-card {
+  height: 100%;
+}
+.scop3p-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.scop3p-field-row > .shiny-input-container {
+  flex: 1 1 200px;
+  margin-bottom: 0;
+}
+/* Buttons in a field row size to their label and stay on the input's baseline.
+   width/flex are pinned because app stylesheets legitimately set `.btn { width: 100% }`
+   for their own button grids, and that would otherwise stretch these across the row. */
+.scop3p-field-row > .btn,
+.scop3p-field-row .shiny-input-container > .btn {
+  margin-bottom: 0;
+  white-space: nowrap;
+  width: auto;
+  flex: 0 0 auto;
+}
+.scop3p-example-btn {
+  background: transparent;
+  border: 1px dashed var(--scop3p-line);
+  color: var(--scop3p-accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 9px;
+  white-space: nowrap;
+}
+.scop3p-example-btn:hover,
+.scop3p-example-btn:focus {
+  border-style: solid;
+  border-color: var(--scop3p-accent);
+  background: rgba(27, 95, 148, 0.07);
+  color: var(--scop3p-accent);
 }
 .scop3p-header-grid {
   display: grid;

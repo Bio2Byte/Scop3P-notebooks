@@ -1,48 +1,103 @@
+# The app images are one thin layer on a shared base, so the base has to be built
+# first. Compose cannot express build ordering, so use the Makefile:
+#
+#     make base            # or: docker compose build scop3p-base
+#     docker compose up -d scop3p-toolkit
+#
+# `make apps` builds all of them in the right order.
+
+x-app: &app
+  platform: linux/amd64          # TM-align is a prebuilt amd64 ELF
+  build:
+    context: docker/apps
+    args:
+      BASE_IMAGE: bio2byte/scop3p-base:local
+
 services:
-  scop3p-toolkit:
+  # Shared runtime. No CMD, so it is never started -- it exists to be built and
+  # inherited. Behind a profile so `docker compose up` ignores it.
+  scop3p-base:
     platform: linux/amd64
+    profiles: ["build"]
     build:
       context: .
-      dockerfile: docker/Dockerfile
-      target: scop3p-toolkit
-    image: bio2byte/scop3p-toolkit:0.1.0
+      dockerfile: docker/Dockerfile.base
+    image: bio2byte/scop3p-base:local
+
+  scop3p-toolkit:
+    <<: *app
+    build:
+      context: docker/apps
+      dockerfile: scop3p-toolkit.Dockerfile
+      args:
+        BASE_IMAGE: bio2byte/scop3p-base:local
+    image: bio2byte/scop3p-toolkit:local
     ports:
       - "8000:8000"
     volumes:
       - ./logs/scop3p-toolkit:/var/log/scop3p_toolkit
 
   peptide-mapper:
-    platform: linux/amd64
+    <<: *app
     build:
-      context: .
-      dockerfile: docker/Dockerfile
-      target: peptide-mapper
-    image: bio2byte/peptide-mapper:0.1.0
+      context: docker/apps
+      dockerfile: peptide-mapper.Dockerfile
+      args:
+        BASE_IMAGE: bio2byte/scop3p-base:local
+    image: bio2byte/peptide-mapper:local
     ports:
       - "8001:8000"
     volumes:
       - ./logs/peptide-mapper:/var/log/scop3p_toolkit
 
   structure-viz:
-    platform: linux/amd64
+    <<: *app
     build:
-      context: .
-      dockerfile: docker/Dockerfile
-      target: structure-viz
-    image: bio2byte/structure-viz:0.1.0
+      context: docker/apps
+      dockerfile: structure-viz.Dockerfile
+      args:
+        BASE_IMAGE: bio2byte/scop3p-base:local
+    image: bio2byte/structure-viz:local
     ports:
       - "8002:8000"
     volumes:
       - ./logs/structure-viz:/var/log/scop3p_toolkit
 
   mutation-effect:
-    platform: linux/amd64
+    <<: *app
     build:
-      context: .
-      dockerfile: docker/Dockerfile
-      target: mutation-effect
-    image: bio2byte/mutation-effect:0.1.0
+      context: docker/apps
+      dockerfile: mutation-effect.Dockerfile
+      args:
+        BASE_IMAGE: bio2byte/scop3p-base:local
+    image: bio2byte/mutation-effect:local
     ports:
       - "8003:8000"
     volumes:
       - ./logs/mutation-effect:/var/log/scop3p_toolkit
+
+  topology-viewer:
+    <<: *app
+    build:
+      context: docker/apps
+      dockerfile: topology-viewer.Dockerfile
+      args:
+        BASE_IMAGE: bio2byte/scop3p-base:local
+    image: bio2byte/topology-viewer:local
+    ports:
+      - "8004:8000"
+    volumes:
+      - ./logs/topology-viewer:/var/log/scop3p_toolkit
+
+  rinalign:
+    <<: *app
+    build:
+      context: docker/apps
+      dockerfile: rinalign.Dockerfile
+      args:
+        BASE_IMAGE: bio2byte/scop3p-base:local
+    image: bio2byte/rinalign:local
+    ports:
+      - "8005:8000"
+    volumes:
+      - ./logs/rinalign:/var/log/scop3p_toolkit

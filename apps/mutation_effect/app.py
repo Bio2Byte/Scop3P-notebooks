@@ -14,12 +14,32 @@ from common.mutation_effect import (  # noqa: E402
     MutationEffectService,
     MutationEffectViews,
 )
-from common.logging_utils import get_logger, log_action_button_click  # noqa: E402
-from common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer  # noqa: E402
+from common.busy import (
+    background,
+    background_task_button,
+    busy_indicators,
+    finish_task,
+    task_button,
+    task_outcome,
+)
+from common.logging_utils import get_logger, new_trail  # noqa: E402
+from common.ui_shell import (  # noqa: E402
+    ACCESSION_LABEL,
+    scop3p_card,
+    scop3p_example_button,
+    scop3p_field_row,
+    scop3p_footer,
+    scop3p_shell,
+)
 
 
 service = MutationEffectService()
 LOGGER = get_logger("scop3p.mutation_effect")
+
+#: Worked example: RET, with well-characterised phosphosites and disease mutations.
+EXAMPLE_ACCESSION = "P07949"
+EXAMPLE_POSITIONS = "606"
+EXAMPLE_MUTATIONS = "A"
 
 
 def _bokeh_iframe(html_doc: str) -> ui.Tag:
@@ -46,8 +66,16 @@ app_ui = scop3p_shell(
             ui.div(
                 scop3p_card(
                     "Protein Setup",
-                    ui.input_text("accession", "UniProt accession", value="P07949"),
-                    ui.input_action_button("run_wt", "Fetch + Predict WT", class_="btn btn-primary"),
+                    scop3p_field_row(
+                        ui.input_text(
+                            "accession",
+                            ACCESSION_LABEL,
+                            value="",
+                            placeholder=f"e.g. {EXAMPLE_ACCESSION}",
+                        ),
+                        scop3p_example_button("load_example"),
+                    ),
+                    background_task_button("run_wt", "Fetch + Predict WT", class_="btn btn-primary"),
                     ui.p("This runs the wild-type UniProt fetch, Scop3P PTM fetch, and Bio2Byte prediction.", class_="scop3p-note"),
                 ),
                 scop3p_card(
@@ -62,9 +90,13 @@ app_ui = scop3p_shell(
             ui.div(
                 scop3p_card(
                     "Mutation Setup",
-                    ui.input_text("positions", "Positions", value="606", placeholder="e.g. 10,25,100"),
-                    ui.input_text("mut_aas", "To amino acid", value="A", placeholder="e.g. A,V,G"),
-                    ui.input_action_button("run_mut", "Apply + Predict", class_="btn btn-warning"),
+                    ui.input_text("positions", "Positions", value="", placeholder="e.g. 10,25,100"),
+                    scop3p_field_row(
+                        ui.input_text("mut_aas", "To amino acid", value="", placeholder="e.g. A,V,G"),
+                        scop3p_example_button("load_example_mut"),
+                    ),
+                    task_button(
+                        "run_mut", "Apply + Predict", class_="btn btn-warning"),
                     ui.p("Use comma-separated 1-indexed positions and amino-acid targets.", class_="scop3p-note"),
                 ),
                 scop3p_card(
@@ -79,7 +111,8 @@ app_ui = scop3p_shell(
             ui.div(
                 scop3p_card(
                     "Label Shift Analysis",
-                    ui.input_action_button("run_inf", "Run inference", class_="btn btn-info"),
+                    task_button(
+                        "run_inf", "Run inference", class_="btn btn-info"),
                     ui.p("Summarize class shifts at the mutation site and within a +/-5 residue window.", class_="scop3p-note"),
                 ),
                 scop3p_card(
@@ -94,6 +127,31 @@ app_ui = scop3p_shell(
 
 
 def server(input, output, session):
+    # One trail per browser session: step numbers must not interleave across
+    # sessions, and a module-level trail would be shared by every user.
+    trail = new_trail()
+    trail.opened("Mutation Effect")
+
+    def _predict_wt(accession_value: str) -> dict:
+        """The blocking half of the WT run: two API calls and a Bio2Byte prediction.
+
+        Runs in a worker thread, so it must not touch reactive values -- everything it
+        needs arrives as an argument and everything it produces comes back in this dict.
+        """
+        sequence_value = service.fetch_uniprot_sequence(accession_value)
+        mods = service.fetch_scop3p_modifications(accession_value)
+        prediction = service.predict_biophysical(accession_value, sequence_value)
+        dataframe = service.prediction_to_df(prediction, accession_value)
+        dataframe["seq"] = list(sequence_value)
+        return {
+            "accession": accession_value,
+            "sequence": sequence_value,
+            "mods": mods,
+            "frame": dataframe,
+        }
+
+    _wt_task = background(_predict_wt)
+
     status_text = reactive.Value("Ready.")
     wt_plot_html = reactive.Value("")
     wt_table_html = reactive.Value("")
@@ -115,23 +173,49 @@ def server(input, output, session):
         return status_text.get()
 
     @reactive.effect
+    @reactive.event(input.load_example)
+    def _load_example() -> None:
+        trail.clicked("Load example")
+        ui.update_text("accession", value=EXAMPLE_ACCESSION)
+        status_text.set(
+            f"Example accession {EXAMPLE_ACCESSION} loaded. Click Fetch + Predict WT."
+        )
+
+    @reactive.effect
+    @reactive.event(input.load_example_mut)
+    def _load_example_mut() -> None:
+        trail.clicked("Load example mutation")
+        ui.update_text("positions", value=EXAMPLE_POSITIONS)
+        ui.update_text("mut_aas", value=EXAMPLE_MUTATIONS)
+        status_text.set(
+            f"Example mutation {EXAMPLE_ACCESSION} "
+            f"{EXAMPLE_POSITIONS}->{EXAMPLE_MUTATIONS} loaded. Click Apply + Predict."
+        )
+
+    @reactive.effect
     @reactive.event(input.run_wt)
     def _run_wt() -> None:
-        try:
-            accession_value = input.accession().strip()
-            log_action_button_click(LOGGER, "run_wt", input.run_wt())
-            LOGGER.info("run_wt requested accession=%s", accession_value or "-", extra={"event": "run_wt"})
-            status_text.set("Fetching UniProt sequence and Scop3P PTMs...")
-            sequence_value = service.fetch_uniprot_sequence(accession_value)
-            mods = service.fetch_scop3p_modifications(accession_value)
+        accession_value = input.accession().strip()
+        trail.entered(ACCESSION_LABEL, accession_value or "-")
+        trail.clicked("Fetch + Predict WT")
+        LOGGER.info("run_wt requested accession=%s", accession_value or "-", extra={"event": "run_wt"})
+        if not accession_value:
+            trail.blocked("accession missing")
+            status_text.set("Enter a UniProtKB accession first.")
+            finish_task("run_wt")
+            return
+        status_text.set(
+            f"Fetching {accession_value} and running the WT biophysical prediction. "
+            "This takes a few seconds."
+        )
+        _wt_task(accession_value)
 
-            status_text.set("Running WT biophysical prediction...")
-            prediction = service.predict_biophysical(accession_value, sequence_value)
-            dataframe = service.prediction_to_df(prediction, accession_value)
-            dataframe["seq"] = list(sequence_value)
-
-            accession.set(accession_value)
-            sequence.set(sequence_value)
+    @reactive.effect
+    def _run_wt_done() -> None:
+        def succeeded(payload: dict) -> None:
+            dataframe, mods = payload["frame"], payload["mods"]
+            accession.set(payload["accession"])
+            sequence.set(payload["sequence"])
             mods_df.set(mods)
             wt_df.set(dataframe)
             mut_df.set(None)
@@ -153,34 +237,48 @@ def server(input, output, session):
                 )
             )
             status_text.set(f"WT prediction ready. PTMs: {0 if mods is None else len(mods)}.")
-        except Exception as error:
-            LOGGER.exception("run_wt failed accession=%s", input.accession().strip() or "-", extra={"event": "run_wt"})
+            trail.produced(
+                f"WT prediction over {len(dataframe)} residues",
+                ptms=0 if mods is None else len(mods),
+            )
+            LOGGER.info(
+                "run_wt completed accession=%s seq_len=%s ptms=%s rows=%s",
+                payload["accession"], len(payload["sequence"]),
+                0 if mods is None else len(mods), len(dataframe),
+                extra={"event": "run_wt"},
+            )
+
+        def failed(error: Exception) -> None:
+            LOGGER.exception("run_wt failed", exc_info=error, extra={"event": "run_wt"})
+            trail.failed("run_wt failed", error=type(error).__name__)
             status_text.set(f"WT error: {error}")
-            return
-        LOGGER.info(
-            "run_wt completed accession=%s seq_len=%s ptms=%s rows=%s",
-            accession_value,
-            len(sequence_value),
-            0 if mods is None else len(mods),
-            len(dataframe),
-            extra={"event": "run_wt"},
+
+        task_outcome(
+            _wt_task,
+            on_success=succeeded,
+            on_error=failed,
+            on_finished=lambda: finish_task("run_wt"),
         )
 
     @reactive.effect
     @reactive.event(input.run_mut)
     def _run_mut() -> None:
         try:
-            log_action_button_click(LOGGER, "run_mut", input.run_mut())
+            trail.clicked("Apply + Predict mutant")
             LOGGER.info("run_mut requested positions=%s aas=%s", input.positions(), input.mut_aas(), extra={"event": "run_mut"})
             if wt_df.get() is None or not sequence.get():
-                LOGGER.warning("run_mut blocked wt prediction missing", extra={"event": "run_mut"})
+                trail.blocked("wt prediction missing")
                 raise ValueError("Run WT prediction first.")
 
             parsed_mutations = service.parse_mutations(input.positions(), input.mut_aas())
             status_text.set("Applying mutations and predicting mutant...")
 
             mutant_sequence = service.apply_mutations(sequence.get(), parsed_mutations)
-            prediction = service.predict_biophysical(accession.get(), mutant_sequence)
+            # Not cached: a mutant is seen once, and caching it would evict the
+            # wild-type prediction that every comparison needs.
+            prediction = service.predict_biophysical(
+                accession.get(), mutant_sequence, wild_type=False
+            )
             dataframe = service.prediction_to_df(prediction, accession.get())
             dataframe["seq"] = list(mutant_sequence)
 
@@ -207,6 +305,7 @@ def server(input, output, session):
             status_text.set("Mutant prediction ready.")
         except Exception as error:
             LOGGER.exception("run_mut failed", extra={"event": "run_mut"})
+            trail.failed("run_mut failed", error=type(error).__name__)
             status_text.set(f"Mutant error: {error}")
             return
         LOGGER.info(
@@ -220,10 +319,10 @@ def server(input, output, session):
     @reactive.event(input.run_inf)
     def _run_inf() -> None:
         try:
-            log_action_button_click(LOGGER, "run_inf", input.run_inf())
+            trail.clicked("Run inference")
             LOGGER.info("run_inf requested mutations=%s", len(mutations.get()), extra={"event": "run_inf"})
             if wt_df.get() is None or mut_df.get() is None:
-                LOGGER.warning("run_inf blocked required predictions missing", extra={"event": "run_inf"})
+                trail.blocked("required predictions missing")
                 raise ValueError("Run WT prediction and Mutant prediction first.")
 
             status_text.set("Running inference...")
@@ -252,8 +351,10 @@ def server(input, output, session):
             status_text.set("Inference ready.")
         except Exception as error:
             LOGGER.exception("run_inf failed", extra={"event": "run_inf"})
+            trail.failed("run_inf failed", error=type(error).__name__)
             status_text.set(f"Inference error: {error}")
             return
+        trail.produced(f"inference produced {len(sections)} section(s)")
         LOGGER.info("run_inf completed sections=%s", len(sections), extra={"event": "run_inf"})
 
     @output
@@ -268,7 +369,14 @@ def server(input, output, session):
             ui.HTML(wt_table_html.get()),
         )
 
-    @output
+    # suspend_when_hidden=False because this output lives in a nav_panel that is not
+    # the initially-active tab. Shiny decides suspension from the client-reported
+    # ".clientdata_output_<id>_hidden" value, and Session._is_hidden() treats "never
+    # reported" as hidden, so such an output is suspended at page load and is never
+    # woken when the user opens its tab: it sits at "recalculating" forever with no
+    # error logged anywhere. Verified against shiny 1.7.0, which requirements-shiny.txt
+    # permits (shiny>=1.1,<2).
+    @output(suspend_when_hidden=False)
     @render.ui
     def mut_results():
         if not mut_plot_html.get():
@@ -281,7 +389,7 @@ def server(input, output, session):
             ui.HTML(mut_table_html.get()),
         )
 
-    @output
+    @output(suspend_when_hidden=False)
     @render.ui
     def inf_results():
         sections = inf_sections.get()
@@ -295,6 +403,7 @@ def server(input, output, session):
         )
 
 content_ui = ui.div(
+    busy_indicators(),
     app_ui, scop3p_footer()
 )
 

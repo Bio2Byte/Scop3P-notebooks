@@ -101,7 +101,7 @@ class _TextResponse:
 
 def test_fetch_uniprot_sequence_parses_fasta(monkeypatch) -> None:
     monkeypatch.setattr(
-        "apps.common.mutation_effect.requests.get",
+        "common.http_lookup.requests.get",
         lambda *args, **kwargs: _TextResponse(">sp|P12345|\nACD\nEFG\n"),
     )
 
@@ -111,7 +111,7 @@ def test_fetch_uniprot_sequence_parses_fasta(monkeypatch) -> None:
 
 def test_fetch_uniprot_sequence_rejects_empty_sequence(monkeypatch) -> None:
     monkeypatch.setattr(
-        "apps.common.mutation_effect.requests.get",
+        "common.http_lookup.requests.get",
         lambda *args, **kwargs: _TextResponse(">sp|P12345|\n"),
     )
 

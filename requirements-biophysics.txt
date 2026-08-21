@@ -1,2 +1,34 @@
-b2bTools~=3.0.8
-scop3p~=1.1.0
+# CPU-only PyTorch.
+#
+# b2bTools runs its predictors on CPU, so the default PyPI `torch` wheel is pure waste
+# here: it is CUDA-enabled and drags in eleven nvidia-* packages plus triton. Measured
+# on linux/amd64, python:3.12-slim, installing this file into a fresh venv:
+#
+#     default torch      /opt/venv = 4.90 GB, 12 nvidia-*/triton packages
+#     torch==2.2.2+cpu   /opt/venv = 1.30 GB,  0 nvidia-*/triton packages
+#
+# a 3.59 GB (73%) smaller virtualenv, and ~2.4 GB less to download. The venv is the
+# dominant layer of the runtime image, so the saving carries through almost one-to-one.
+#
+# `+cpu` wheels are published only for linux/amd64, which is the only platform these
+# images target anyway (TM-align is committed as an amd64 ELF). On macOS and elsewhere
+# the ordinary PyPI wheel is already CPU-only, so the markers below keep a plain
+# `pip install -r requirements-biophysics.txt` working for developers.
+#
+# The version is not free to choose: b2bTools requires torch~=2.2.2 on Python 3.12,
+# which is the image's base. torch 1.13 would need Python <=3.11 (there is no cp312
+# wheel), and Python <=3.10 would additionally break apps/common/models.py, which uses
+# enum.StrEnum (3.11+).
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.2.2+cpu; sys_platform == "linux" and platform_machine == "x86_64"
+torch==2.2.2; sys_platform != "linux" or platform_machine != "x86_64"
+
+b2bTools==3.0.9rc3
+
+# The `scop3p` PyPI client is deliberately NOT pinned here. Version 1.1.0, the latest
+# release, still targets the pre-v1 endpoints -- /scop3p/api/modifications?accession=...
+# and friends -- which the current deployment answers with the single-page-app HTML
+# (200 OK, text/html) rather than JSON. apps/common/services.py talks to the v1 API
+# directly instead. Re-add it, and switch Scop3PClient back, once a release supports
+# /scop3p/api/v1/proteins/{accession}/...

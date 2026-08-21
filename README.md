@@ -16,19 +16,28 @@ Jupyter Notebook examples of Scop3P REST API services as well as ShinyApp/Voilà
 This repository publishes the Galaxy-facing `bio2byte/scop3p-toolkit` container. The image packages the single-container portal exposed on port `8000` and is the intended entrypoint for a UseGalaxy interactive tool.
 
 - Docker image: `bio2byte/scop3p-toolkit`
-- Dockerfile target: `scop3p-toolkit`
-- App-specific documentation: [`apps/README.md`](/Users/adrian/workspace/vub/Scop3P-notebooks/apps/README.md)
+- Dockerfile: `docker/apps/scop3p-toolkit.Dockerfile`, on top of `docker/Dockerfile.base`
+- The image also carries `notebooks/topology_viewer/topology` at
+  `/opt/scop3p/topology_viewer`, which the Topology Viewer app imports through
+  `apps/common/topology_bridge.py`. Override the location with `SCOP3P_TOPOLOGY_PATH`.
+  Anyone rebuilding or vendoring this image needs to keep `notebooks/` in the build
+  context.
+- **Start here:** [`QUICKSTART.md`](QUICKSTART.md) — how to open the launcher and every
+  app, in Docker, as a Shiny app, as a notebook, or under Voila
+- App-specific documentation: [`apps/README.md`](apps/README.md)
+- Protocol delivery status (which notebook is a Shiny app, which is not): [`docs/PROTOCOL_STATUS.md`](docs/PROTOCOL_STATUS.md)
 
 ## Build and run the toolkit image
 
 Build the published image locally:
 
 ```bash
-DOCKER_DEFAULT_PLATFORM=linux/amd64 docker build \
-  -f docker/Dockerfile \
-  -t bio2byte/scop3p-toolkit:local \
-  .
+make scop3p-toolkit
 ```
+
+That builds the shared base (`docker/Dockerfile.base`) and then the portal image on top
+of it (`docker/apps/scop3p-toolkit.Dockerfile`). `make apps` builds every app image;
+`make scan` reports the image's vulnerabilities.
 
 Run it locally:
 
@@ -40,7 +49,7 @@ Then open `http://localhost:8000` to access the toolkit selector and launch the 
 
 ## Continuous delivery to Docker Hub
 
-The GitHub Actions workflow lives in [`docker-publish.yml`](/Users/adrian/workspace/vub/Scop3P-notebooks/.github/workflows/docker-publish.yml) and has two stages:
+The GitHub Actions workflow lives in [`docker-publish.yml`](.github/workflows/docker-publish.yml) and has two stages:
 
 1. `Pytest suite`
    Runs on pull requests, manual workflow dispatches, and version-tag pushes.
@@ -96,6 +105,11 @@ Journal of Proteome Research 2020 19 (8), 3478-3486. [DOI: 10.1021/acs.jproteome
 Open the **Scop3P API** using the Swagger UI click [here](https://iomics.ugent.be/scop3p/api/v1/docs)
 
 ## Jupyter Notebook index
+
+> The notebooks target the **Scop3P v1 REST API**
+> (`/scop3p/api/v1/proteins/{accession}/...`). The `scop3p` PyPI client is not used;
+> its latest release still points at the retired query-string endpoints. See
+> [`docs/PROTOCOL_STATUS.md`](docs/PROTOCOL_STATUS.md) for the endpoint mapping.
 
 This section contains the links to our online Jupyter Notebooks. We would like to invite you to contribute to our repository if you want to share your Jupyter Notebooks related to Scop3P, PTMs, Peptides or structural features. Please contact us at [pathmanaban.ramasamy@ugent.be](mailto:pathmanaban.ramasamy@ugent.be).
 
@@ -155,6 +169,35 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 | [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Scop3P_b2b_mutation_effect_voila_app.ipynb) |
 
 
+### Protein topology viewer
+
+Draws a 2D secondary-structure topology diagram beside the 3D structure. Fetches an
+AlphaFold DB model or a PDBe entry by UniProtKB accession, or works fully offline on an
+uploaded predicted structure. Secondary structure is read from the file when present
+and derived from coordinates when it is not. Scop3P PTMs and UniProt disease variants
+can be overlaid, positioned through the SIFTS numbering map.
+
+Unlike the other protocols this one is a Python package with the notebook as a thin
+launcher, so it must be run from inside its own directory:
+[`notebooks/topology_viewer/`](notebooks/topology_viewer/) (see its
+[README](notebooks/topology_viewer/README.md)).
+
+| Notebook (JupyterLab) | Interactive app (Voilà) |
+|----------------------|--------------------------|
+| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/topology_viewer/topology_viewer.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/topology_viewer/topology_viewer.ipynb) |
+
+### Residue interaction network alignment (RINAlign)
+
+Builds residue interaction networks from two structures and compares them. *Same
+protein* mode matches residue positions and splits the contacts into conserved, lost
+and gained; *different proteins* mode aligns the two graphs by Weisfeiler-Lehman
+topology and Hungarian assignment. PTM and disease-variant positions can be overlaid,
+and a linked view ties the network to the 3D structure in both directions.
+
+| Notebook (JupyterLab) | Interactive app (Voilà) |
+|----------------------|--------------------------|
+| [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/RINAlign_align_and%20compare_networks.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/RINAlign_align_and%20compare_networks.ipynb) |
+
 ### Peptide-to-structure mapping
 
 Interactive mapping of phosphopeptides—either fetched from Scop3P or uploaded by the user onto AlphaFold structures to visualize peptide coverage and modification sites.
@@ -171,6 +214,10 @@ Click on the next link to open the Jupyter Notebook in an executable environment
 |---------|------------------------|--------------------------|
 | Scop3P peptides | [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_scop3p_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_scop3p_voila.ipynb) |
 | Upload your own peptides | [![Open Notebook](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?filepath=notebooks/Peptide_mapper_fileupload_voila.ipynb) | [![Launch App](https://mybinder.org/badge_logo.svg)](https://binder.compomics.com/v2/gh/Bio2Byte/Scop3P-notebooks/HEAD?urlpath=voila/render/notebooks/Peptide_mapper_fileupload_voila.ipynb) |
+
+Both workflows are available as one Shiny app: the Peptide Mapper has a *Scop3P
+peptides* and an *Upload your own* source tab, sharing the same filtering, mapping and
+export controls.
 
 
 ## About

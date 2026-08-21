@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import io
 import logging
 import re
@@ -11,8 +12,28 @@ from common.logging_utils import (
     configure_logging,
     get_log_file_path,
     get_metadata_path,
-    log_action_button_click,
+    new_trail,
 )
+
+
+@contextlib.contextmanager
+def _capture(logger: logging.Logger):
+    """Collect records emitted by one logger, without touching global config."""
+    records: list[logging.LogRecord] = []
+
+    class _Collector(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Collector()
+    previous_handlers, previous_level = logger.handlers, logger.level
+    logger.handlers = [handler]
+    logger.setLevel(logging.DEBUG)
+    try:
+        yield records
+    finally:
+        logger.handlers = previous_handlers
+        logger.setLevel(previous_level)
 
 
 def test_safe_extra_formatter_defaults_missing_event() -> None:
@@ -30,19 +51,23 @@ def test_safe_extra_formatter_defaults_missing_event() -> None:
     assert "INFO event=- hello" in stream.getvalue()
 
 
-def test_log_action_button_click_records_button_and_count() -> None:
-    stream = io.StringIO()
-    handler = logging.StreamHandler(stream)
-    handler.setFormatter(_SafeExtraFormatter("%(levelname)s event=%(event)s %(message)s"))
+def test_a_click_is_recorded_as_an_ordered_trail_step() -> None:
+    """Replaces the old log_action_button_click helper.
 
-    logger = logging.getLogger("test.action_button_click")
-    logger.handlers = [handler]
-    logger.propagate = False
-    logger.setLevel(logging.INFO)
+    A raw click count told you a button was pressed; the trail says which action it was,
+    where it sits in the sequence, and which session it belongs to.
+    """
+    logger = logging.getLogger("scop3p.trail")
+    with _capture(logger) as records:
+        trail = new_trail("mutation-effect", session_id="sess0001")
+        trail.clicked("Fetch + Predict WT")
 
-    log_action_button_click(_EventAdapter(logger, {}), "run_wt", 3)
+    message = records[-1].getMessage()
+    assert "action=click" in message
+    assert "Fetch + Predict WT" in message
+    assert "step=1" in message
+    assert "session=sess0001" in message
 
-    assert "INFO event=action_button_click action_button clicked button=run_wt click_count=3" in stream.getvalue()
 
 
 def test_configure_logging_mirrors_records_to_log_file(tmp_path, monkeypatch) -> None:

@@ -10,29 +10,72 @@ if str(ROOT) not in sys.path:
 import pandas as pd
 from shiny import App, reactive, render, ui
 
-from common.logging_utils import get_logger, log_action_button_click
+from common.busy import busy_indicators, task_button
+from common.logging_utils import get_logger, new_trail
 from common.models import PeptideSelectionMode
-from common.peptide_mapper import PeptideMapperService, map_selection
+from common.peptide_mapper import (
+    PeptideColumnMapping,
+    PeptideMapperService,
+    build_upload_mapping,
+    detect_peptide_columns,
+    map_selection,
+    mapped_residue_rows,
+    peptides_for_protein,
+    protein_choices,
+    read_peptide_table,
+)
 from common.services import AlphaFoldService, Scop3PClient
-from common.ui_shell import scop3p_card, scop3p_shell, scop3p_footer
+from common.ui_shell import (
+    ACCESSION_LABEL,
+    scop3p_card,
+    scop3p_example_button,
+    scop3p_field_row,
+    scop3p_footer,
+    scop3p_shell,
+)
 from common.viewer import NGLViewerBuilder
 
 
 LOGGER = get_logger("scop3p.peptide_mapper")
 
+#: Title of the upload source tab. Compared against input.source_tabs() to decide
+#: which source is active; a navset with an id reports the ACTIVE PANEL TITLE.
+UPLOAD_TAB = "Upload your own"
+
+#: Worked example: DDX3X, a well-covered phosphoprotein in Scop3P.
+EXAMPLE_ACCESSION = "O00571"
+
+
+# Stateless and safe to share: the Scop3P client holds no request state, and the
+# AlphaFold service is a disk cache we *want* shared across sessions.
+_CLIENT = Scop3PClient()
+_AF_SERVICE = AlphaFoldService(cache_dir=Path("af_cache"))
+
 
 class PeptideMapperController:
-    """Stateful coordinator for Peptide Mapper app behavior."""
+    """Stateful coordinator for Peptide Mapper app behavior.
+
+    Instantiated once per Shiny session, inside ``server()``. Do not hoist this
+    back to module level: every attribute below is a ``reactive.value``, so a
+    module-level instance is shared by every connected browser and one user's
+    peptide table renders in another user's viewer.
+    """
 
     def __init__(self) -> None:
-        self.client = Scop3PClient()
-        self.af_service = AlphaFoldService(cache_dir=Path("af_cache"))
+        self.client = _CLIENT
+        self.af_service = _AF_SERVICE
 
         self.dataframe = reactive.value(pd.DataFrame())
         self.filtered_dataframe = reactive.value(pd.DataFrame())
         self.viewer_html = reactive.value("")
         self.summary_text = reactive.value("Load an accession to start.")
         self.status_text = reactive.value("")
+
+        # Upload mode. `dataframe` above always holds the peptide table currently in
+        # play, whatever its source, so everything downstream is source-agnostic.
+        self.upload_raw = reactive.value(pd.DataFrame())
+        self.upload_mapped = reactive.value(pd.DataFrame())
+        self.upload_name = reactive.value("")
 
         self.last_pdb_path = reactive.value(None)
         self.last_union_ranges = reactive.value([])
@@ -48,9 +91,6 @@ class PeptideMapperController:
         self.last_modification_positions.set([])
 
 
-controller = PeptideMapperController()
-
-
 def _as_selectize_choices(options: list[tuple[str, str]]) -> dict[str, str]:
     # Shiny selectize choices must be value -> label.
     return {value: label for label, value in options}
@@ -61,7 +101,10 @@ app_ui = scop3p_shell(
     "Enter an accession, load peptides from Scop3P, filter and select mapped spans, then visualize coverage and modification sites on the AlphaFold structure.",
     ui.tags.style(
         """
-        .pm-controls-card .btn {
+        /* Scoped to the action grid. When this matched every .btn in the card it also
+           hit the buttons inside .scop3p-field-row, forcing them full width and
+           breaking the input/button baseline. */
+        .pm-button-grid .btn {
           width: 100%;
           min-height: 54px;
           white-space: normal;
@@ -70,11 +113,14 @@ app_ui = scop3p_shell(
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
           gap: 18px;
-          align-items: start;
+          align-items: stretch;
+        }
+        .pm-main-grid > .scop3p-card {
+          height: 100%;
         }
         .pm-top-row {
           display: grid;
-          grid-template-columns: minmax(180px, 1fr) 140px minmax(280px, 1.2fr);
+          grid-template-columns: minmax(180px, 1fr) 140px;
           gap: 14px;
           align-items: end;
           margin-bottom: 14px;
@@ -87,8 +133,58 @@ app_ui = scop3p_shell(
         }
         .pm-button-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
           gap: 12px;
+        }
+        /* The peptide selector is a dropdown with multi-select, not a list. Cap the
+           control so a large selection scrolls inside it rather than growing the card,
+           and clip long labels so the card never scrolls sideways. */
+        .pm-peptides .selectize-input {
+          max-height: 150px;
+          overflow-y: auto;
+        }
+        /* The chip must always show its remove control, however long the label.
+           Selectize renders the "x" as the last child *inside* .item, and its own CSS
+           makes .item an inline-flex box. The label is then an anonymous flex item, which
+           cannot shrink below its content width (the flexbox min-width:auto trap), so the
+           "x" was pushed 215px past the clip edge and disappeared -- the chip could be
+           selected but never removed.
+
+           Fixed by dropping back to inline-block, so text-overflow can ellipsize the
+           label, and reserving room on the right for the "x" via padding with the link
+           absolutely positioned into it. overflow:hidden clips at the padding edge, so
+           anything inside that reserved strip stays visible. */
+        .pm-peptides .selectize-input > .item {
+          position: relative;
+          display: inline-block;
+          max-width: 100%;
+          padding-right: 22px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          vertical-align: top;
+        }
+        .pm-peptides .selectize-input > .item > .remove {
+          position: absolute;
+          top: 0;
+          right: 0;
+          width: 20px;
+          text-align: center;
+          border-left: 1px solid rgba(0, 0, 0, 0.12);
+        }
+        .pm-peptides .selectize-dropdown-content {
+          max-height: 260px;
+        }
+        .pm-selection-count {
+          margin: 6px 0 0;
+          font-size: 0.85rem;
+          color: var(--scop3p-muted);
+        }
+        .pm-upload-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+          gap: 10px;
+          margin: 10px 0;
         }
         .pm-mods-row .form-group,
         .pm-list-block .form-group {
@@ -120,37 +216,93 @@ app_ui = scop3p_shell(
     ui.div(
         scop3p_card(
             "Controls",
-            ui.div(
-                ui.input_text("accession", "ACC_ID (UniProt accession number)", value="", placeholder="e.g. O00571"),
-                ui.input_action_button("load_btn", "Load", class_="btn-primary"),
-                ui.div(
-                    ui.input_radio_buttons(
-                        "list_mode",
-                        "List",
-                        choices=[PeptideSelectionMode.UNIQUE_SPANS.value, PeptideSelectionMode.ALL_ROWS.value],
-                        selected=PeptideSelectionMode.UNIQUE_SPANS.value,
-                        inline=False,
+            # These tabs cover the SOURCE of the peptide table only. Search,
+            # selection, mapping, the viewer and the exports live outside the navset
+            # and are shared, so nothing below is duplicated per source.
+            ui.navset_tab(
+                ui.nav_panel(
+                    "Scop3P peptides",
+                    scop3p_field_row(
+                        ui.input_text(
+                            "accession",
+                            ACCESSION_LABEL,
+                            value="",
+                            placeholder=f"e.g. {EXAMPLE_ACCESSION}",
+                        ),
+                        task_button(
+                        "load_btn", "Load", class_="btn btn-primary"),
+                        scop3p_example_button("load_example"),
                     ),
-                    class_="pm-list-block",
                 ),
-                class_="pm-top-row",
+                ui.nav_panel(
+                    "Upload your own",
+                    ui.input_file(
+                        "peptide_upload",
+                        "Peptide table (TSV/CSV)",
+                        accept=[".tsv", ".txt", ".csv"],
+                        multiple=False,
+                    ),
+                    task_button(
+                        "load_upload", "Load file", class_="btn-primary"),
+                    ui.div(
+                        ui.input_select("col_protein", "Protein ID", choices={}),
+                        ui.input_select("col_sequence", "Peptide sequence", choices={}),
+                        ui.input_select("col_start", "Peptide start", choices={}),
+                        ui.input_select("col_end", "Peptide end", choices={}),
+                        ui.input_select("col_position", "UniProt position", choices={}),
+                        class_="pm-upload-grid",
+                    ),
+                    task_button(
+                        "build_mapping", "Build mapping", class_="btn-success"),
+                    ui.input_select("protein", "Protein", choices={}),
+                    ui.output_ui("upload_preview"),
+                    ui.p(
+                        "Columns are detected automatically; correct any wrong guess, "
+                        "then build the mapping.",
+                        class_="scop3p-note",
+                    ),
+                ),
+                id="source_tabs",
+            ),
+            ui.div(
+                ui.input_radio_buttons(
+                    "list_mode",
+                    "List",
+                    choices=[PeptideSelectionMode.UNIQUE_SPANS.value, PeptideSelectionMode.ALL_ROWS.value],
+                    selected=PeptideSelectionMode.UNIQUE_SPANS.value,
+                    inline=False,
+                ),
+                class_="pm-list-block",
             ),
             ui.input_text(
                 "search",
                 "Search",
                 placeholder="Filter: substring (SSFG), range (70-90), >=150, <=300, or single pos (154)",
             ),
-            ui.input_selectize(
-                "peptides",
-                "Peptides",
-                choices={},
-                multiple=True,
-                options={"placeholder": "Select peptide entries"},
+            # Wrapped so the CSS can cap the control's height. "Map all (filtered)"
+            # can select 46 spans at once, and selectize renders every selection as a
+            # chip on its own line, so the control grew past the height of the card
+            # and pushed the viewer off screen.
+            ui.div(
+                ui.input_selectize(
+                    "peptides",
+                    "Peptides",
+                    choices={},
+                    multiple=True,
+                    options={"placeholder": "Select peptide entries"},
+                ),
+                ui.output_ui("peptide_selection_count"),
+                class_="pm-peptides",
             ),
             ui.div(
                 ui.div(
-                    ui.input_action_button("map_all", "Map all (filtered)", class_="btn-warning"),
-                    ui.input_action_button("export_html", "Export styled HTML", class_="btn-info"),
+                    task_button(
+                        "map_all", "Map all (filtered)", class_="btn-warning"),
+                    task_button(
+                        "export_html", "Export styled HTML", class_="btn-info"),
+                    ui.download_button("download_html", "Download HTML", class_="btn-info"),
+                    ui.download_button("download_pdb", "Download PDB", class_="btn-secondary"),
+                    ui.download_button("download_residues", "Residues (TSV)", class_="btn-secondary"),
                     class_="pm-button-grid",
                 ),
                 ui.div(
@@ -180,14 +332,166 @@ app_ui = scop3p_shell(
 
 
 def server(input, output, session):
+    # One trail per browser session: step numbers must not interleave across
+    # sessions, and a module-level trail would be shared by every user.
+    trail = new_trail()
+    trail.opened("Peptide Mapper")
+
+    controller = PeptideMapperController()
+
+    def active_accession() -> str:
+        """The accession to fetch a structure for, per the selected source tab.
+
+        Branch on the tab, not on "whichever field is non-empty": Shiny keeps the
+        inputs of an inactive tab readable, so a stale accession left in the Scop3P
+        field would otherwise silently override the uploaded protein.
+        """
+        if input.source_tabs() == UPLOAD_TAB:
+            return (input.protein() or "").strip()
+        return input.accession().strip()
+
+    def _column_mapping() -> PeptideColumnMapping:
+        return PeptideColumnMapping(
+            protein=input.col_protein() or None,
+            sequence=input.col_sequence() or None,
+            start=input.col_start() or None,
+            end=input.col_end() or None,
+            position=input.col_position() or None,
+        )
+
+    @reactive.effect
+    @reactive.event(input.load_example)
+    def _load_example() -> None:
+        trail.clicked("Load example")
+        ui.update_text("accession", value=EXAMPLE_ACCESSION)
+        controller.status_text.set(
+            f"Example accession {EXAMPLE_ACCESSION} loaded. Click Load."
+        )
+
+    @reactive.effect
+    @reactive.event(input.load_upload)
+    def _load_upload() -> None:
+        trail.clicked("Load file")
+        uploaded = input.peptide_upload()
+        if not uploaded:
+            controller.status_text.set("Choose a peptide table (TSV or CSV) first.")
+            return
+        item = uploaded[0]
+        name = item.get("name") or "uploaded"
+        try:
+            raw, delimiter = read_peptide_table(item["datapath"])
+        except Exception as error:
+            LOGGER.exception("upload read failed name=%s", name, extra={"event": "load_upload"})
+            trail.failed("upload read failed", error=type(error).__name__)
+            controller.status_text.set(f"Could not read {name}: {error}")
+            return
+
+        controller.upload_raw.set(raw)
+        controller.upload_name.set(name)
+
+        columns = [str(column) for column in raw.columns]
+        choices = {column: column for column in columns}
+        detected = detect_peptide_columns(columns)
+        for input_id, field in (
+            ("col_protein", "protein"),
+            ("col_sequence", "sequence"),
+            ("col_start", "start"),
+            ("col_end", "end"),
+            ("col_position", "position"),
+        ):
+            ui.update_select(input_id, choices=choices, selected=getattr(detected, field))
+
+        message = (
+            f"Loaded {name} ({delimiter}-separated): {len(raw)} rows x {len(columns)} columns."
+        )
+        if detected.missing:
+            message += (
+                " Could not identify: " + ", ".join(detected.missing)
+                + ". Pick those columns by hand, then click Build mapping."
+            )
+        else:
+            message += " Columns detected. Click Build mapping."
+        controller.status_text.set(message)
+        trail.produced(
+            f"uploaded table read: {name}",
+            rows=len(raw), columns=len(columns), unmapped=",".join(detected.missing) or "-",
+        )
+        LOGGER.info(
+            "load_upload completed name=%s rows=%s columns=%s missing=%s",
+            name,
+            len(raw),
+            len(columns),
+            ",".join(detected.missing) or "-",
+            extra={"event": "load_upload"},
+        )
+
+    @reactive.effect
+    @reactive.event(input.build_mapping)
+    def _build_mapping() -> None:
+        trail.clicked("Build mapping")
+        raw = controller.upload_raw.get()
+        if raw is None or raw.empty:
+            controller.status_text.set("Load a peptide table first.")
+            return
+        try:
+            mapped = build_upload_mapping(raw, _column_mapping())
+        except Exception as error:
+            LOGGER.exception("build_mapping failed", extra={"event": "build_mapping"})
+            trail.failed("build_mapping failed", error=type(error).__name__)
+            controller.status_text.set(f"Mapping error: {error}")
+            return
+
+        if mapped.empty:
+            controller.status_text.set(
+                "No usable rows after mapping. Check that start, end and position are "
+                "numeric and that start is 1-indexed."
+            )
+            return
+
+        choices = protein_choices(mapped)
+        first = next(iter(choices))
+        # `dataframe` is the single source everything downstream reads, so the upload
+        # path ends here: one protein's rows go in and the Scop3P pipeline continues.
+        controller.upload_mapped.set(mapped)
+        controller.dataframe.set(peptides_for_protein(mapped, first))
+        controller.filtered_dataframe.set(controller.dataframe.get())
+        controller.clear_render_state()
+        ui.update_select("protein", choices=choices, selected=first)
+
+        controller.status_text.set(
+            f"Mapped {len(mapped)} rows across {len(choices)} protein(s). "
+            f"Showing {first}."
+        )
+        LOGGER.info(
+            "build_mapping completed rows=%s proteins=%s",
+            len(mapped),
+            len(choices),
+            extra={"event": "build_mapping"},
+        )
+
+    @reactive.effect
+    @reactive.event(input.protein)
+    def _protein_changed() -> None:
+        mapped = controller.upload_mapped.get()
+        accession = (input.protein() or "").strip()
+        if mapped is None or mapped.empty or not accession:
+            return
+        subset = peptides_for_protein(mapped, accession)
+        controller.dataframe.set(subset)
+        controller.filtered_dataframe.set(subset)
+        controller.clear_render_state()
+        ui.update_selectize("peptides", choices={}, selected=[])
+        controller.status_text.set(f"Showing {len(subset)} peptide rows for {accession}.")
+
     @reactive.effect
     @reactive.event(input.load_btn)
     def _load_data() -> None:
         accession = input.accession().strip()
-        log_action_button_click(LOGGER, "load_btn", input.load_btn())
+        trail.entered(ACCESSION_LABEL, accession or "-")
+        trail.clicked("Load")
         LOGGER.info("load requested accession=%s", accession or "-", extra={"event": "load_btn"})
         if not accession:
-            LOGGER.warning("load blocked missing accession", extra={"event": "load_btn"})
+            trail.blocked("missing accession")
             controller.status_text.set("Enter an accession (e.g., O00571), then click Load.")
             return
 
@@ -195,6 +499,7 @@ def server(input, output, session):
             dataframe = controller.client.fetch_peptides_modifications(accession)
         except Exception as error:
             LOGGER.exception("load failed accession=%s", accession, extra={"event": "load_btn"})
+            trail.failed("load failed", error=type(error).__name__)
             controller.status_text.set(f"Scop3P API error: {error}")
             controller.dataframe.set(pd.DataFrame())
             controller.filtered_dataframe.set(pd.DataFrame())
@@ -216,6 +521,7 @@ def server(input, output, session):
         options = PeptideMapperService.build_options(dataframe, mode)
         ui.update_selectize("peptides", choices=_as_selectize_choices(options), selected=[])
         controller.status_text.set(f"Loaded {len(dataframe)} peptide-mod rows for {accession}.")
+        trail.produced(f"{len(dataframe)} peptides loaded", mode=mode.value)
         LOGGER.info(
             "load completed accession=%s rows=%s mode=%s",
             accession,
@@ -254,10 +560,10 @@ def server(input, output, session):
     @reactive.event(input.map_all)
     def _map_all() -> None:
         filtered = controller.filtered_dataframe.get()
-        log_action_button_click(LOGGER, "map_all", input.map_all())
+        trail.clicked("Map all (filtered)")
         LOGGER.info("map_all requested", extra={"event": "map_all"})
         if filtered is None or filtered.empty:
-            LOGGER.warning("map_all blocked no filtered rows", extra={"event": "map_all"})
+            trail.blocked("no filtered rows")
             controller.status_text.set("No filtered rows available. Load data first.")
             return
 
@@ -274,7 +580,7 @@ def server(input, output, session):
         if not selected_values:
             return
 
-        accession = input.accession().strip()
+        accession = active_accession()
         LOGGER.info(
             "render requested accession=%s selected=%s show_mods=%s scope=%s",
             accession or "-",
@@ -284,14 +590,18 @@ def server(input, output, session):
             extra={"event": "render_selection"},
         )
         if not accession:
-            LOGGER.warning("render blocked missing accession", extra={"event": "render_selection"})
-            controller.status_text.set("Enter an accession and click Load first.")
+            trail.blocked("missing accession")
+            controller.status_text.set(
+                "Choose a protein in the Upload tab first."
+                if input.source_tabs() == UPLOAD_TAB
+                else "Enter an accession and click Load first."
+            )
             return
 
         dataframe_all = controller.dataframe.get()
         dataframe_filtered = controller.filtered_dataframe.get()
         if dataframe_all is None or dataframe_all.empty:
-            LOGGER.warning("render blocked no data loaded", extra={"event": "render_selection"})
+            trail.blocked("no data loaded")
             controller.status_text.set("No data loaded. Click Load first.")
             return
 
@@ -299,6 +609,7 @@ def server(input, output, session):
             pdb_path = controller.af_service.download_pdb(accession)
         except Exception as error:
             LOGGER.exception("alphafold download failed accession=%s", accession, extra={"event": "render_selection"})
+            trail.failed("AlphaFold download failed", error=type(error).__name__)
             controller.status_text.set(f"AlphaFold download error: {error}")
             return
 
@@ -312,6 +623,7 @@ def server(input, output, session):
             )
         except Exception as error:
             LOGGER.exception("selection mapping failed accession=%s", accession, extra={"event": "render_selection"})
+            trail.failed("selection mapping failed", error=type(error).__name__)
             controller.status_text.set(f"Selection mapping error: {error}")
             return
 
@@ -337,7 +649,7 @@ def server(input, output, session):
         controller.summary_text.set(
             "\n".join(
                 [
-                    f"ACC_ID: {accession}",
+                    f"Accession: {accession}",
                     f"AlphaFold model: {pdb_path}",
                     f"Selected entries: {len(selected_values)}",
                     f"Coverage: {coverage_start} -> {coverage_end}",
@@ -359,22 +671,23 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.export_html)
     def _export_html() -> None:
-        accession = input.accession().strip()
-        log_action_button_click(LOGGER, "export_html", input.export_html())
+        accession = active_accession()
+        trail.clicked("Export styled HTML")
         LOGGER.info("export requested accession=%s", accession or "-", extra={"event": "export_html"})
         if not accession:
-            LOGGER.warning("export blocked missing accession", extra={"event": "export_html"})
+            trail.blocked("missing accession")
             controller.status_text.set("Enter an accession first.")
             return
 
         if not controller.viewer_html.get() or controller.last_pdb_path.get() is None:
-            LOGGER.warning("export blocked no rendered selection", extra={"event": "export_html"})
+            trail.blocked("no rendered selection")
             controller.status_text.set("Render a selection first before exporting.")
             return
 
         export_path = Path("exports") / f"{accession}_styled_session.html"
         NGLViewerBuilder.export_html(export_path, controller.viewer_html.get())
         controller.status_text.set(f"Exported styled HTML to: {export_path.resolve()}")
+        trail.exported(f"styled HTML session: {export_path.name}")
         LOGGER.info("export completed path=%s", export_path.resolve(), extra={"event": "export_html"})
 
     @render.text
@@ -386,14 +699,84 @@ def server(input, output, session):
         return controller.summary_text.get()
 
     @render.ui
+    def peptide_selection_count():
+        """How many peptides are selected, since the chips can now be scrolled away."""
+        selected = list(input.peptides())
+        if not selected:
+            return None
+        # `df or []` raises: a DataFrame has no truth value. Check for None explicitly.
+        filtered = controller.filtered_dataframe.get()
+        total = 0 if filtered is None else len(filtered)
+        noun = "peptide" if len(selected) == 1 else "peptides"
+        return ui.p(
+            f"{len(selected)} {noun} selected"
+            + (f" of {total} filtered rows" if total else ""),
+            class_="pm-selection-count",
+        )
+
+    @render.ui
     def viewer():
         payload = controller.viewer_html.get()
         if not payload:
             return ui.p("No structure rendered yet.")
         return ui.HTML(payload)
 
+    # suspend_when_hidden=False because this output sits in the "Upload your own"
+    # tab, which is not the initially-active one; see the note in
+    # apps/rinalign/app.py for why such outputs never wake up otherwise.
+    @output(suspend_when_hidden=False)
+    @render.ui
+    def upload_preview():
+        raw = controller.upload_raw.get()
+        if raw is None or raw.empty:
+            return ui.p(
+                "Upload a TSV or CSV exported from your search engine.",
+                class_="scop3p-note",
+            )
+        preview = raw.head(5)
+        return ui.TagList(
+            ui.p(
+                f"{controller.upload_name.get()} - first {len(preview)} of {len(raw)} rows",
+                class_="scop3p-note",
+            ),
+            ui.HTML(
+                "<div style='overflow-x:auto;max-width:100%;'>"
+                + preview.to_html(index=False, border=0, classes="table table-sm")
+                + "</div>"
+            ),
+        )
+
+    # Downloads rather than server-side files. The notebook wrote into exports/
+    # because Voila had no download primitive; on a shared server that path is a
+    # cross-session collision and leaves user data on the host.
+    @render.download_button(filename=lambda: f"{active_accession() or 'peptides'}_session.html")
+    def download_html():
+        payload = controller.viewer_html.get()
+        if not payload:
+            yield "<!doctype html><p>Render a selection before downloading.</p>"
+            return
+        yield payload
+
+    @render.download_button(filename=lambda: f"{active_accession() or 'structure'}.pdb")
+    def download_pdb():
+        path = controller.last_pdb_path.get()
+        if not path:
+            yield "REMARK  Render a selection first; no structure has been fetched.\n"
+            return
+        yield Path(path).read_text(encoding="utf-8", errors="replace")
+
+    @render.download_button(filename=lambda: f"{active_accession() or 'peptides'}_mapped_residues.tsv")
+    def download_residues():
+        table = mapped_residue_rows(
+            controller.last_union_ranges.get(),
+            controller.last_intersection_positions.get(),
+            controller.last_modification_positions.get(),
+        )
+        yield table.to_csv(sep="\t", index=False)
+
 
 content_ui = ui.div(
+    busy_indicators(),
     app_ui, scop3p_footer()
 )
 

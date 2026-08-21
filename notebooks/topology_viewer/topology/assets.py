@@ -209,7 +209,16 @@ VIEWER_JS = r"""
 
   MolstarAdapter.prototype.init = function (node) {
     var self = this;
-    var version = this.options.molstarVersion || "4.19.0";
+    // 4.18.0, not 4.19.0. The original pin was written without network access and
+    // never resolved: molstar@4.19.0 does not exist on npm, so every attempt to
+    // switch to the Mol* engine failed with "Mol* could not load". 4.18.0 is the
+    // nearest published release in the same line and exposes Viewer.create.
+    // Its UMD bundle exports only Viewer and ViewerAutoPreset, so _buildIndex's
+    // OrderedSet probes all miss and the adapter takes its documented fallback
+    // path; the status line says so. (Mol* 5.x additionally exports a `lib`
+    // namespace that may restore the fast path, but that is a major-version jump
+    // affecting the rest of this adapter, so it is not taken here.)
+    var version = this.options.molstarVersion || "4.18.0";
     var base = "https://cdn.jsdelivr.net/npm/molstar@" + version + "/build/viewer/";
     loadCss(base + "molstar.css", "topo-molstar-css");
     return loadScript(base + "molstar.js", "topo-molstar-js").then(function () {

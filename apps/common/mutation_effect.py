@@ -5,13 +5,22 @@ from tempfile import NamedTemporaryFile
 from uuid import uuid4
 
 import pandas as pd
-import requests
 from bokeh.embed import components
 from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.plotting import figure
 from bokeh.resources import CDN
 
+from common.cache import PREDICTION_MAX_ENTRIES, PREDICTION_TTL_SECONDS, memoize
+from common.http_lookup import lookup as _raw_lookup
+from common.logging_utils import get_logger, quiet_third_party
 from common.services import Scop3PClient
+
+LOGGER = get_logger("scop3p.common.mutation_effect")
+
+
+def http_lookup(url: str, **kwargs):
+    """An annotation lookup under the policy shared with every other protocol."""
+    return _raw_lookup(url, logger=LOGGER, **kwargs)
 
 try:
     from b2bTools import SingleSeq
@@ -47,8 +56,15 @@ class MutationEffectService:
         self.uniprot_base_url = uniprot_base_url.rstrip("/")
         self.timeout = timeout
 
+    @memoize(name="uniprot.sequence.fasta")
     def fetch_uniprot_sequence(self, accession: str) -> str:
-        response = requests.get(f"{self.uniprot_base_url}/{accession}.fasta", timeout=self.timeout)
+        """The canonical sequence for an accession.
+
+        Shared with Structure Visualisation through the cache: both protocols ask for the
+        same FASTA, and this is the request that failed for a user with a dropped TLS
+        handshake and no retry behind it.
+        """
+        response = http_lookup(f"{self.uniprot_base_url}/{accession}.fasta")
         response.raise_for_status()
         sequence = "".join(
             line.strip()
@@ -71,20 +87,54 @@ class MutationEffectService:
         dataframe["position"] = dataframe["position"].astype(int)
         return dataframe
 
-    def predict_biophysical(self, accession: str, sequence: str) -> dict:
+    def predict_biophysical(
+        self, accession: str, sequence: str, *, wild_type: bool = True
+    ) -> dict:
+        """Run Bio2Byte and return its raw payload.
+
+        Only the **wild type** is cached. A mutant sequence is very likely to be seen once:
+        caching it would spend a slot that never earns a hit and, worse, would evict the
+        wild-type prediction that every subsequent comparison needs -- so exploring a dozen
+        mutations would keep re-running the one prediction worth keeping. The caller says
+        which it has, rather than this method guessing by comparing sequences.
+
+        A separate cache from the normalised table in structure_viz: this returns the whole
+        prediction dict keyed by accession, that returns a DataFrame, so sharing one name
+        would mean handing a caller the other's shape.
+        """
+        if wild_type:
+            return self._predict_biophysical_cached(accession, sequence)
+        return self._predict_biophysical_uncached(accession, sequence)
+
+    @memoize(
+        name="b2b.prediction.raw",
+        ttl_seconds=PREDICTION_TTL_SECONDS,
+        max_entries=PREDICTION_MAX_ENTRIES,
+    )
+    def _predict_biophysical_cached(self, accession: str, sequence: str) -> dict:
+        """The wild-type path. Keyed on the sequence as well as the accession, so a change
+        of canonical sequence upstream cannot serve a stale prediction."""
+        return self._predict_biophysical_uncached(accession, sequence)
+
+    def _predict_biophysical_uncached(self, accession: str, sequence: str) -> dict:
         if SingleSeq is None:
             raise RuntimeError("b2bTools is not available in this environment.")
 
         with NamedTemporaryFile(prefix="seq_", suffix=".fasta", mode="w") as handle:
             handle.write(f">{accession}\n{sequence}\n")
             handle.flush()
-            predictor = SingleSeq(handle.name)
-            
-            predictor.predict(
-                tools=[constants.TOOL_DYNAMINE, constants.TOOL_DISOMINE, constants.TOOL_EFOLDMINE]
-            )
-            
-            return predictor.get_all_predictions()
+            # See quiet_third_party: b2bTools prints its progress and its dependencies
+            # warn once per prediction, none of which belongs in the experiment record.
+            with quiet_third_party(LOGGER, event="b2b_predict"):
+                predictor = SingleSeq(handle.name)
+                predictor.predict(
+                    tools=[
+                        constants.TOOL_DYNAMINE,
+                        constants.TOOL_DISOMINE,
+                        constants.TOOL_EFOLDMINE,
+                    ]
+                )
+                return predictor.get_all_predictions()
 
     @staticmethod
     def prediction_to_df(prediction: dict, accession: str) -> pd.DataFrame:
