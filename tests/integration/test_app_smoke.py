@@ -130,3 +130,114 @@ def test_portal_logging_metadata_configured() -> None:
     metadata_path = get_metadata_path()
     assert metadata_path is not None
     assert metadata_path.exists()
+
+
+def test_every_app_footer_carries_the_external_resources_notice() -> None:
+    """The protocols are thin clients over other people's services.
+
+    Those services fail transiently -- dropped handshakes, truncated bodies -- and without
+    saying so a network error reads as "my accession must be wrong". The notice belongs on
+    every protocol, not just the one that happened to get it, so it is asserted per app.
+    """
+    from common.ui_shell import EXTERNAL_RESOURCES_NOTICE
+
+    # A distinctive fragment, so rewording the sentence does not silently drop the check.
+    fragment = "external online resources"
+    assert fragment in EXTERNAL_RESOURCES_NOTICE
+
+    for key, (_label, _icon, app) in APP_OPTIONS.items():
+        rendered = str(app.ui)
+        assert fragment in rendered, f"{key} does not show the external-resources notice"
+        assert "try the action again" in rendered, f"{key} does not tell the user to retry"
+
+
+def test_the_notice_names_the_services_it_depends_on() -> None:
+    """Naming them lets a user check a status page rather than guess."""
+    from common.ui_shell import EXTERNAL_RESOURCES_NOTICE
+
+    for service in ("UniProt", "Scop3P", "PDBe", "RCSB", "AlphaFold"):
+        assert service in EXTERNAL_RESOURCES_NOTICE, f"{service} is not named"
+
+
+def test_the_notice_follows_the_tagline() -> None:
+    """Placement was requested specifically: after the one-line description."""
+    from common.ui_shell import EXTERNAL_RESOURCES_NOTICE, scop3p_footer
+
+    rendered = str(scop3p_footer())
+    tagline = "Protein phosphorylation context across sequence"
+    assert tagline in rendered
+    assert rendered.index(tagline) < rendered.index("external online resources")
+    assert EXTERNAL_RESOURCES_NOTICE.split(" — ")[0][:40] in rendered.replace("&#8212;", "—")
+
+
+def test_every_app_declares_a_favicon() -> None:
+    """Without it the browser asks for /favicon.ico on every load and gets a 404.
+
+    Declaring the icon stops the request being made at all, which beats adding a route to
+    six apps plus the portal. Asserted per app so one shell change cannot leave some behind.
+    """
+    for key, (_label, _icon, app) in APP_OPTIONS.items():
+        rendered = str(app.ui)
+        assert 'rel="icon"' in rendered, f"{key} declares no favicon"
+        assert "data:image/png;base64," in rendered, f"{key}'s favicon has no payload"
+
+
+def test_the_favicon_is_small_enough_to_inline_on_every_page() -> None:
+    """It is a data URI, so its size is paid on every page load.
+
+    The source logo is 82 KB, which would be ~110 KB of base64 per load for something a
+    browser draws at 16-32px.
+    """
+    from common.ui_shell import _favicon_data_uri
+
+    uri = _favicon_data_uri()
+    assert uri is not None
+    assert len(uri) < 20_000, f"favicon data URI is {len(uri)/1024:.0f} KB; downscale it"
+
+
+def test_the_favicon_is_square() -> None:
+    """A browser fits the icon to a square box, so a wide logo ends up tiny."""
+    import base64
+    import io
+
+    from common.ui_shell import FAVICON_SIZE, _favicon_data_uri
+
+    PIL = pytest.importorskip("PIL.Image")
+    raw = base64.b64decode(_favicon_data_uri().split(",", 1)[1])
+    with PIL.open(io.BytesIO(raw)) as image:
+        assert image.size == (FAVICON_SIZE, FAVICON_SIZE)
+
+
+def test_a_missing_asset_does_not_break_the_page(monkeypatch, tmp_path) -> None:
+    """A cosmetic icon must never take an app down."""
+    from common import ui_shell
+
+    monkeypatch.setattr(ui_shell, "_IMAGE_DIR", tmp_path)
+    monkeypatch.setattr(ui_shell, "_favicon_cache", None)
+    assert ui_shell.favicon_tags() == []
+    assert str(ui_shell.scop3p_shell("X", "y"))  # still renders
+
+
+def test_pillow_being_absent_does_not_break_the_page(monkeypatch) -> None:
+    """Pillow is transitive (via bokeh), not declared, so it may not be there.
+
+    The fallback is the full-size image: wasteful, but a working page.
+    """
+    import builtins
+
+    from common import ui_shell
+
+    real_import = builtins.__import__
+
+    def no_pil(name, *args, **kwargs):
+        if name.startswith("PIL"):
+            raise ImportError("no Pillow")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_pil)
+    monkeypatch.setattr(ui_shell, "_favicon_cache", None)
+    uri = ui_shell._favicon_data_uri()
+    monkeypatch.undo()
+    monkeypatch.setattr(ui_shell, "_favicon_cache", None)
+
+    assert uri is not None and uri.startswith("data:image/png;base64,")

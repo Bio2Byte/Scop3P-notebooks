@@ -33,7 +33,7 @@ from scipy.optimize import linear_sum_assignment
 from scipy.spatial import KDTree
 
 from common.cache import memoize
-from common.http_lookup import lookup as _http_lookup
+from common.http_lookup import json_body_validator, lookup as _http_lookup
 from common.logging_utils import get_logger
 from common.structure_labels import ALPHAFOLD_OPTION_LABEL, chain_option_label
 from common.services import Scop3PClient
@@ -42,7 +42,14 @@ LOGGER = get_logger("scop3p.common.rinalign")
 
 
 def http_lookup(url: str, **kwargs):
-    """An annotation lookup under the policy shared with every other protocol."""
+    """An annotation lookup under the policy shared with every other protocol.
+
+    Body validation is on by default so a truncated response is retried rather than
+    surfacing as a parse error. Every lookup here reads JSON and every one checks the
+    status itself, so defaulting it once beats repeating it at eight call sites -- and
+    a new call site gets the behaviour without having to remember it.
+    """
+    kwargs.setdefault("validate", json_body_validator)
     return _http_lookup(url, logger=LOGGER, **kwargs)
 
 UNIPROT_BASE_URL = "https://rest.uniprot.org/uniprotkb"

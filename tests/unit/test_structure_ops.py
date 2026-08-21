@@ -77,9 +77,13 @@ def test_run_tmalign_finds_existing_candidate(monkeypatch, tmp_path: Path) -> No
 
     monkeypatch.setattr("common.structure_viz.subprocess.run", _mock_run)
 
-    path, report = StructureOps.run_tmalign(pdb1, pdb2, tmp_path, out_name="aligned")
-    assert path == aligned
-    assert report == "Aligned\n"
+    output = StructureOps.run_tmalign(pdb1, pdb2, tmp_path, out_name="aligned")
+    assert output.superposed == aligned
+    assert output.report == "Aligned\n"
+    # The reference half of the superposition is the second input, unmoved. TM-align never
+    # writes the two structures as one file, so both paths have to come back or the viewer
+    # can only ever draw one of them.
+    assert output.reference == pdb2
 
 
 def test_run_tmalign_raises_runtime_error_with_subprocess_output(monkeypatch, tmp_path: Path) -> None:

@@ -19,7 +19,21 @@ _FOOTER_LOGOS = [
 ]
 
 
+#: Multiplier applied to a logo's CSS display height before resizing. 2x keeps it crisp on
+#: a high-DPI screen, which is where an under-sized raster is obvious.
+_RETINA_SCALE = 2
+
+#: Rendered images are inlined as data URIs, so every byte is paid on every page load --
+#: there is no separate cacheable request to amortise them. The source logos are print
+#: assets (elixir-belgium.png alone is 382 KB) displayed at 60-120px tall, so they were
+#: costing 1.07 MB of HTML per load. Resizing to the height they are actually drawn at
+#: removes about 95% of that. Keyed by (filename, target height) and computed once per
+#: process, because a resize per page load would trade bandwidth for CPU.
+_scaled_cache: dict[tuple[str, int], str] = {}
+
+
 def _image_data_uri(filename: str) -> str | None:
+    """The original file, inlined at full size. The fallback when resizing is unavailable."""
     path = _IMAGE_DIR / filename
     if not path.exists():
         return None
@@ -27,10 +41,124 @@ def _image_data_uri(filename: str) -> str | None:
     return f"data:image/png;base64,{payload}"
 
 
+def _css_pixels(value: str) -> int | None:
+    """The number out of a CSS length like ``"60px"``."""
+    text = str(value).strip().lower().removesuffix("px").strip()
+    try:
+        return int(float(text))
+    except ValueError:
+        return None
+
+
+def _resized_png(filename: str, *, height: int | None = None, square: int | None = None):
+    """PNG bytes for a resized copy, or None when Pillow is unavailable.
+
+    Pillow is a transitive dependency here (it arrives through bokeh) rather than a declared
+    one, so every caller has to cope with it being absent.
+    """
+    path = _IMAGE_DIR / filename
+    if not path.exists():
+        return None
+    try:
+        import io
+
+        from PIL import Image
+
+        with Image.open(path) as opened:
+            image = opened.convert("RGBA")
+            if square is not None:
+                image.thumbnail((square, square), Image.LANCZOS)
+                canvas = Image.new("RGBA", (square, square), (0, 0, 0, 0))
+                canvas.paste(
+                    image,
+                    ((square - image.width) // 2, (square - image.height) // 2),
+                )
+                image = canvas
+            elif height is not None and image.height > height:
+                width = max(1, round(image.width * height / image.height))
+                image = image.resize((width, height), Image.LANCZOS)
+            buffer = io.BytesIO()
+            image.save(buffer, format="PNG", optimize=True)
+        return buffer.getvalue()
+    except Exception:  # noqa: BLE001 - a logo must never break a page
+        return None
+
+
+def _scaled_image_data_uri(filename: str, display_height: str) -> str | None:
+    """A logo inlined at the size it is actually displayed, not its source size."""
+    target = _css_pixels(display_height)
+    if target is None:
+        return _image_data_uri(filename)
+
+    target *= _RETINA_SCALE
+    cache_key = (filename, target)
+    cached = _scaled_cache.get(cache_key)
+    if cached is not None:
+        return cached or None
+
+    payload = _resized_png(filename, height=target)
+    if payload is None:
+        fallback = _image_data_uri(filename)
+        _scaled_cache[cache_key] = fallback or ""
+        return fallback
+
+    uri = f"data:image/png;base64,{base64.b64encode(payload).decode('ascii')}"
+    _scaled_cache[cache_key] = uri
+    return uri
+
+
+#: The browser asks for /favicon.ico on every page and nothing answered, so each load
+#: logged a 404. Declaring the icon in the head stops the request being made at all,
+#: which is tidier than adding a route to every app plus the portal.
+FAVICON_SOURCE = "scop3p.png"
+
+#: Pixels per side for the generated icon. Browsers display a favicon at 16-32px, so the
+#: 82 KB source is far larger than needed; 64 covers high-DPI tabs.
+FAVICON_SIZE = 64
+
+_favicon_cache: str | None = None
+
+
+def _favicon_data_uri() -> str | None:
+    """A small square PNG icon derived from the Scop3P logo, as a data URI.
+
+    Squared rather than merely shrunk: the logo is wider than it is tall, and a browser fits
+    a favicon into a square tab box, which would scale a wide image down to the height of
+    its narrower side.
+
+    Falls back to the full-size image if resizing is unavailable -- wasteful, but a working
+    page, and a cosmetic icon must never take an app down.
+    """
+    global _favicon_cache
+    if _favicon_cache is not None:
+        return _favicon_cache or None
+
+    payload = _resized_png(FAVICON_SOURCE, square=FAVICON_SIZE)
+    if payload is None:
+        fallback = _image_data_uri(FAVICON_SOURCE)
+        _favicon_cache = fallback or ""
+        return fallback
+
+    _favicon_cache = f"data:image/png;base64,{base64.b64encode(payload).decode('ascii')}"
+    return _favicon_cache
+
+
+def favicon_tags() -> list[ui.Tag]:
+    """Head tags declaring the tab icon, or nothing if the asset is missing."""
+    href = _favicon_data_uri()
+    if not href:
+        return []
+    return [
+        ui.tags.link(rel="icon", type="image/png", href=href),
+        # Safari and iOS look for this one specifically.
+        ui.tags.link(rel="apple-touch-icon", href=href),
+    ]
+
+
 def _footer_logo_tags() -> list[ui.Tag]:
     tags: list[ui.Tag] = []
     for label, filename, height in _FOOTER_LOGOS:
-        src = _image_data_uri(filename)
+        src = _scaled_image_data_uri(filename, height)
         if src is None:
             tags.append(ui.span(label, class_="scop3p-logo-fallback", title=f"Missing asset: {filename}"))
             continue
@@ -102,6 +230,7 @@ def scop3p_example_button(input_id: str, label: str = "Load example") -> ui.Tag:
 
 def scop3p_shell(app_name: str, intro: str, *children: ui.TagChild) -> ui.Tag:
     return ui.page_fluid(
+        ui.head_content(*favicon_tags()),
         ui.tags.style(_SCOP3P_CSS),
         ui.div(
             ui.div(
@@ -129,6 +258,21 @@ def scop3p_card(title: str, *children: ui.TagChild, extra_class: str = "") -> ui
     )
 
 
+#: Footer disclaimer. These protocols are thin clients over other people's services --
+#: UniProt, Scop3P, PDBe, the EBI Proteins API, RCSB and AlphaFold DB -- and those services
+#: do fail transiently: dropped TLS handshakes, connections closed mid-response, truncated
+#: JSON bodies. The app retries once and caches what it gets, but it cannot make an
+#: unavailable service available, so the honest thing is to tell the user that retrying is
+#: worth doing rather than let a network error read as a mistake on their part.
+EXTERNAL_RESOURCES_NOTICE = (
+    "These protocols query external online resources (UniProt, Scop3P, PDBe, the EBI "
+    "Proteins API, RCSB PDB and AlphaFold DB) as you use them, so results depend on those "
+    "services being reachable. If something fails unexpectedly, it is usually a temporary "
+    "problem at the source rather than anything wrong with your input \u2014 please wait a "
+    "moment and try the action again."
+)
+
+
 def scop3p_footer() -> ui.Tag:
     return ui.tags.footer(
         ui.div(
@@ -137,6 +281,15 @@ def scop3p_footer() -> ui.Tag:
                 ui.p(
                     "Protein phosphorylation context across sequence, structure, proteomics, and variant evidence.",
                     class_="scop3p-footer-copy",
+                ),
+                # Every protocol reads live data from UniProt, Scop3P, PDBe, the EBI
+                # Proteins API, RCSB and AlphaFold DB, so a failure here is usually an
+                # upstream hiccup rather than bad input. Saying so in the footer means the
+                # explanation is on screen when it is needed, instead of the user
+                # concluding their accession is wrong.
+                ui.p(
+                    EXTERNAL_RESOURCES_NOTICE,
+                    class_="scop3p-footer-copy scop3p-footer-notice",
                 ),
                 ui.div(*_footer_logo_tags(), class_="scop3p-footer-logos"),
                 ui.p(
@@ -401,6 +554,11 @@ body {
 .scop3p-footer-link {
   margin: 0 0 8px;
   color: rgba(247,250,252,0.82);
+}
+.scop3p-footer-notice {
+  font-size: 0.9em;
+  line-height: 1.5;
+  color: rgba(247,250,252,0.68);
 }
 .scop3p-footer-logos {
   display: flex;

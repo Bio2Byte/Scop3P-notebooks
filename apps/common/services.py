@@ -9,7 +9,7 @@ import pandas as pd
 import requests
 
 from common.cache import memoize
-from common.http_lookup import lookup as http_lookup
+from common.http_lookup import json_body_validator, lookup as http_lookup
 from common.logging_utils import get_logger
 
 
@@ -74,10 +74,22 @@ class Scop3PClient:
         url = f"{self.base_url}/{path.lstrip('/')}"
         try:
             response = http_lookup(
-                url, headers={"Accept": "application/json"}, logger=LOGGER
+                url,
+                headers={"Accept": "application/json"},
+                logger=LOGGER,
+                # A truncated body is a transport fault and worth retrying; this client
+                # inspects the status and content type itself, so it keeps the Response.
+                validate=json_body_validator,
             )
         except requests.RequestException as error:
             raise Scop3PApiError(f"Could not reach Scop3P at {url}: {error}") from error
+        except ValueError as error:
+            # A body that declared itself JSON and would not parse, after the retries. The
+            # caller of this client expects Scop3PApiError for anything Scop3P-shaped, so a
+            # raw JSONDecodeError escaping from the transport would bypass every handler.
+            raise Scop3PApiError(
+                f"Scop3P returned a malformed JSON body for {url}: {error}"
+            ) from error
 
         if response.status_code >= 400:
             raise Scop3PApiError(f"Scop3P returned HTTP {response.status_code} for {url}")

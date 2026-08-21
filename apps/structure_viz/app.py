@@ -23,6 +23,7 @@ from common.structure_viz import (  # noqa: E402
     chain_choices_for_pdb,
     identity_mapping,
     numeric_b2b_columns,
+    parse_tmalign_report,
     pdb_entry_choices,
     remap_positions,
     remap_site_rows,
@@ -106,6 +107,16 @@ class StructureVizController:
         self.tm_structures_loaded = reactive.value(False)
         self.tm_loaded_signature_1 = reactive.value(None)
         self.tm_loaded_signature_2 = reactive.value(None)
+
+
+def _tm_describe(pdb_id: str, chain: str, start, end) -> str:
+    """Name one side of the comparison the way the user chose it."""
+    bits = [pdb_id.strip().upper() or "uploaded file"]
+    if chain:
+        bits.append(f"chain {chain}")
+    if start is not None and end is not None:
+        bits.append(f"{int(start)}-{int(end)}")
+    return " ".join(bits)
 
 
 def _tm_source_signature(upload, pdb_id: str) -> tuple[str, str] | None:  # noqa: ANN001
@@ -1077,16 +1088,39 @@ def server(input, output, session):
 
             seg1 = StructureOps.save_chain_segment(f1, controller.workdir / "seg1.pdb", chain1, start1, end1)
             seg2 = StructureOps.save_chain_segment(f2, controller.workdir / "seg2.pdb", chain2, start2, end2)
-            aligned_path, report = StructureOps.run_tmalign(seg1, seg2, controller.workdir, out_name="aligned")
+            alignment = StructureOps.run_tmalign(
+                seg1, seg2, controller.workdir, out_name="aligned"
+            )
+            aligned_path, report = alignment.superposed, alignment.report
 
-            first_line = report.splitlines()[0] if report.splitlines() else "TM-align completed."
-            controller.tm_report.set(f"{first_line}\nAligned file: {aligned_path}")
+            # The scores are the result. Previously only report.splitlines()[0] was shown,
+            # which is TM-align's blank first line, so the user saw a temp-file path and
+            # nothing about how similar the two structures are.
+            result = parse_tmalign_report(report)
+            controller.tm_report.set(
+                f"{result.summary()}\n\n"
+                f"Aligned structure: {aligned_path.name}\n\n"
+                f"--- full TM-align output ---\n{report.strip()}"
+            )
+            # Both structures, distinctly coloured. Rendering only the superposed one
+            # showed a single shape, which is not a superposition and cannot answer the
+            # question the protocol is for.
             controller.tm_html.set(
-                StructureViewerBuilder.ptm_html(
-                    pdb_text=aligned_path.read_text(encoding="utf-8", errors="ignore"),
-                    accession="TM-align result",
-                    ptm_rows=[],
-                    chain=None,
+                StructureViewerBuilder.superposition_html(
+                    superposed_text=alignment.superposed.read_text(
+                        encoding="utf-8", errors="ignore"
+                    ),
+                    reference_text=alignment.reference.read_text(
+                        encoding="utf-8", errors="ignore"
+                    ),
+                    label_superposed=_tm_describe(
+                        input.tm_pdb1_id(), chain1, start1, end1
+                    )
+                    + " - superposed",
+                    label_reference=_tm_describe(
+                        input.tm_pdb2_id(), chain2, start2, end2
+                    )
+                    + " - reference",
                 )
             )
             controller.status.set("TM-align completed.")

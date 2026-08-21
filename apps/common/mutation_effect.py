@@ -19,7 +19,12 @@ LOGGER = get_logger("scop3p.common.mutation_effect")
 
 
 def http_lookup(url: str, **kwargs):
-    """An annotation lookup under the policy shared with every other protocol."""
+    """An annotation lookup under the policy shared with every other protocol.
+
+    No JSON body validation here: this module fetches FASTA, and a truncated FASTA is not
+    detectable by parsing. The empty-sequence check in fetch_uniprot_sequence is what
+    catches a badly truncated response.
+    """
     return _raw_lookup(url, logger=LOGGER, **kwargs)
 
 try:

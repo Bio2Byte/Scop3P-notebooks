@@ -641,9 +641,12 @@ def test_it_does_not_retry_forever(monkeypatch, tmp_path: Path) -> None:
         raise requests.exceptions.ConnectTimeout("connect timed out")
 
     monkeypatch.setattr("common.http_lookup.requests.get", always_fails)
+    from common import http_lookup as policy
+
     with pytest.raises(requests.exceptions.ConnectTimeout):
         StructureVizService(tmp_path).fetch_pdb_xrefs("P07949")
-    assert attempts["n"] == 2, "exactly one retry, not an unbounded loop"
+    assert attempts["n"] == policy.ATTEMPTS, "the retry count is bounded, not a loop"
+    assert policy.ATTEMPTS <= 4, "a real outage must still surface in seconds"
 
 
 def test_a_stalled_host_is_bounded_by_the_read_timeout(monkeypatch, tmp_path: Path) -> None:

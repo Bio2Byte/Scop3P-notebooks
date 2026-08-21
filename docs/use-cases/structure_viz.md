@@ -156,6 +156,68 @@ modified residue is the strongest available check that the mapping is right. Tie
 were also cross-checked against each other on `2IVT` and `1A3N`: 286 and 141 shared residues
 respectively, with zero disagreements.
 
+## TM-align reports its scores
+
+TM-align writes a 24-line report whose **first line is blank**, and the app was displaying
+`report.splitlines()[0]` -- that blank line -- followed by a path to a temp file. The
+alignment ran, the superposed structure rendered in 3D, and the user was told nothing about
+how similar the two structures are, which is the entire question a structure alignment
+answers. It reads as "TM-align does not work" because the part that matters is missing.
+
+`parse_tmalign_report` now reads the scores and the result is shown score-first:
+
+```
+TM-score: 0.96803  (same fold)
+  normalised by structure 1: 0.96803   by structure 2: 0.95468
+Aligned length: 278 residues  (of 284 and 288)
+RMSD: 0.84 A
+Sequence identity over the alignment: 98.2%
+```
+
+The full raw output follows underneath, so the residue-level alignment strings are still
+available.
+
+### The viewer draws both structures
+
+A superposition is two structures, and TM-align never writes them as one file. It produces
+`aligned.pdb` -- the first structure *rotated onto* the second -- and leaves the second as
+the unmoved input. Its own PyMOL script is explicit about this:
+
+```
+cmd.load("aligned.pdb", "structure1")
+cmd.load(".../seg2.pdb",  "structure2")
+```
+
+The app was rendering only `aligned.pdb`, so it could show exactly one structure however
+well the alignment had gone. `run_tmalign` now returns both halves (`TMAlignOutput`), and
+`superposition_html` draws them in one NGL stage in two colours, with a legend naming the
+entries the user picked. The single-structure viewer cannot express this: it loads one file
+and paints it uniform grey, so even given both structures the result would be one
+indistinguishable shape -- and seeing *where* two structures differ is the point.
+
+Two rendering details, both found by measuring rather than reading:
+
+- **The view is framed only once both structures have loaded.** `autoView` on the first
+  arrival leaves the second outside the camera.
+- **The stage re-frames itself when it gains a size.** These outputs render while their tab
+  is hidden (`suspend_when_hidden=False`), so the stage can be built inside a zero-sized
+  element and stay blank. A `ResizeObserver` fixes that, deferred to the next frame --
+  observing fires mid-layout, and measuring then caught a settled height against a width
+  still at 1px, leaving the canvas a 2px sliver.
+
+Notes:
+
+- TM-align emits **two** TM-scores, normalised by each structure's length, and they are not
+  interchangeable. The higher is shown first with both underneath, because nothing here
+  knows which structure the user considers the reference.
+- The interpretation uses the published thresholds (Xu & Zhang, 2010): below 0.17 is no
+  better than two random structures, 0.5 or above means the same fold. A bare number
+  invites the reader to invent a threshold.
+- Every field is optional. A future TM-align renaming one line should cost that line, not
+  the whole summary, and a missing value is omitted rather than reported as zero.
+- A unit test pins the parser, and a second pins the *call site* -- a correct parser handed
+  one line is still the original bug, and the parser tests pass either way.
+
 ## Shared UI conventions
 
 This app uses the toolkit-wide vocabulary from `apps/common/ui_shell.py`: the accession

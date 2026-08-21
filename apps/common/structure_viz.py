@@ -29,6 +29,7 @@ from common.cache import (
     structure_file_lock,
 )
 from common.http_lookup import lookup as http_lookup
+from common.http_lookup import lookup_json as http_lookup_json
 from common.logging_utils import get_logger, quiet_third_party
 from common.structure_labels import (
     CHOOSE_ENTRY_PLACEHOLDER,
@@ -89,13 +90,11 @@ class StructureVizService:
         the first semicolon: "Phosphotyrosine; by autocatalysis" becomes
         "Phosphotyrosine".
         """
-        response = self._lookup(
+        payload = self._lookup_json(
             f"{PROTEINS_FEATURES_URL}/{accession}",
             headers={"Accept": "application/json"},
             params=[("categories", "PTM")],
         )
-        response.raise_for_status()
-        payload = response.json()
 
         sequence = payload.get("sequence") or ""
         rows: list[dict[str, object]] = []
@@ -138,12 +137,11 @@ class StructureVizService:
         self, pdb_id: str, accession: str, chain: str | None = None
     ) -> dict[int, int]:
         """Tier 1: the PDBe SIFTS API's residue-level mapping for one chain."""
-        response = self._lookup(
+        payload = self._lookup_json(
             f"https://www.ebi.ac.uk/pdbe/api/mappings/uniprot/{pdb_id.lower()}",
             headers={"Accept": "application/json"},
         )
-        response.raise_for_status()
-        return parse_pdbe_uniprot_mappings(response.json(), pdb_id, accession, chain)
+        return parse_pdbe_uniprot_mappings(payload, pdb_id, accession, chain)
 
     def download_pdbe_updated_cif(self, pdb_id: str) -> Path | None:
         """The SIFTS-enriched mmCIF, falling back to RCSB's plain one."""
@@ -255,19 +253,16 @@ class StructureVizService:
         loop for every connected session while it waits -- a slow UniProt froze the app
         for the full 60 seconds before this was bounded.
         """
-        response = self._lookup(
+        payload = self._lookup_json(
             f"https://rest.uniprot.org/uniprotkb/{accession}.json",
             headers={"Accept": "application/json"},
         )
-        response.raise_for_status()
-        return parse_pdb_xrefs(response.json())
+        return parse_pdb_xrefs(payload)
 
     @memoize(name="uniprot.disease.variants")
     def fetch_variants(self, accession: str) -> pd.DataFrame:
         url = f"https://www.ebi.ac.uk/proteins/api/variation/{accession}"
-        response = self._lookup(url, headers={"Accept": "application/json"})
-        response.raise_for_status()
-        payload = response.json()
+        payload = self._lookup_json(url, headers={"Accept": "application/json"})
         rows: list[dict[str, object]] = []
         for feature in payload.get("features", []):
             if feature.get("type") != "VARIANT":
@@ -412,6 +407,14 @@ class StructureVizService:
         response.raise_for_status()
         out_path.write_bytes(response.content)
         return out_path
+
+    def _lookup_json(self, url: str, **kwargs):
+        """A JSON lookup whose parse is inside the retry loop.
+
+        A truncated body only fails at parse time, after the request itself succeeded, so
+        parsing outside the loop puts that failure beyond the reach of the retry.
+        """
+        return http_lookup_json(url, logger=LOGGER, **kwargs)
 
     def _lookup(self, url: str, **kwargs) -> requests.Response:
         """An annotation lookup under the shared HTTP policy.
@@ -1303,6 +1306,113 @@ class ChainRangeSelect(Select):
         return True
 
 
+@dataclass(frozen=True, slots=True)
+class TMAlignOutput:
+    """What one TM-align run produces.
+
+    Two coordinate files, not one: ``superposed`` is the first structure rotated onto the
+    second, and ``reference`` is that second structure as it was given. Both are needed to
+    draw a superposition.
+    """
+
+    superposed: Path
+    reference: Path
+    report: str
+
+
+@dataclass(frozen=True, slots=True)
+class TMAlignResult:
+    """The numbers a structure alignment exists to produce.
+
+    TM-align writes a 24-line report whose first line is blank. The app was showing
+    ``report.splitlines()[0]`` -- that blank line -- and a path to a temp file, so every
+    TM-score, the RMSD and the aligned length were discarded. The alignment ran, the 3D
+    view rendered, and the user was told nothing about how similar the two structures
+    are, which is the entire question being asked.
+    """
+
+    tm_score_1: float | None = None
+    tm_score_2: float | None = None
+    aligned_length: int | None = None
+    rmsd: float | None = None
+    sequence_identity: float | None = None
+    length_1: int | None = None
+    length_2: int | None = None
+
+    def summary(self) -> str:
+        """A few lines a reader can act on, most important first."""
+        rows: list[str] = []
+        if self.tm_score_1 is not None or self.tm_score_2 is not None:
+            best = max(score for score in (self.tm_score_1, self.tm_score_2) if score is not None)
+            rows.append(f"TM-score: {best:.5f}  ({self.interpretation()})")
+            if self.tm_score_1 is not None and self.tm_score_2 is not None:
+                rows.append(
+                    f"  normalised by structure 1: {self.tm_score_1:.5f}"
+                    f"   by structure 2: {self.tm_score_2:.5f}"
+                )
+        if self.aligned_length is not None:
+            span = f"Aligned length: {self.aligned_length} residues"
+            if self.length_1 and self.length_2:
+                span += f"  (of {self.length_1} and {self.length_2})"
+            rows.append(span)
+        if self.rmsd is not None:
+            rows.append(f"RMSD: {self.rmsd:.2f} A")
+        if self.sequence_identity is not None:
+            rows.append(f"Sequence identity over the alignment: {self.sequence_identity:.1%}")
+        return "\n".join(rows) or "TM-align produced no parseable scores."
+
+    def interpretation(self) -> str:
+        """The conventional reading of a TM-score.
+
+        Thresholds from Xu & Zhang (2010): below 0.17 is no better than two random
+        structures, above 0.5 means the same fold. Stated because a bare number invites
+        the reader to invent their own threshold.
+        """
+        best = max(
+            (score for score in (self.tm_score_1, self.tm_score_2) if score is not None),
+            default=None,
+        )
+        if best is None:
+            return "no score"
+        if best < 0.17:
+            return "no structural similarity"
+        if best < 0.5:
+            return "some similarity, probably a different fold"
+        return "same fold"
+
+
+_TM_PATTERNS = {
+    "aligned_length": re.compile(r"Aligned length\s*=\s*(\d+)"),
+    "rmsd": re.compile(r"RMSD\s*=\s*([\d.]+)"),
+    "sequence_identity": re.compile(r"Seq_ID\s*=\s*n_identical/n_aligned\s*=\s*([\d.]+)"),
+    "length_1": re.compile(r"Length of Structure_1:\s*(\d+)"),
+    "length_2": re.compile(r"Length of Structure_2:\s*(\d+)"),
+}
+_TM_SCORE_PATTERN = re.compile(r"TM-score\s*=\s*([\d.]+)\s*\(normalized by length of Structure_(\d)")
+
+
+def parse_tmalign_report(report: str) -> TMAlignResult:
+    """Pull the scores out of TM-align's stdout.
+
+    Tolerant by design: a version that renames a field should cost that one field, not the
+    whole summary, so every value is optional and a missing one is simply omitted.
+    """
+    text = report or ""
+    values: dict[str, object] = {}
+    for field_name, pattern in _TM_PATTERNS.items():
+        match = pattern.search(text)
+        if not match:
+            continue
+        raw = match.group(1)
+        values[field_name] = int(raw) if field_name.startswith(("aligned", "length")) else float(raw)
+
+    for match in _TM_SCORE_PATTERN.finditer(text):
+        score, which = float(match.group(1)), match.group(2)
+        values[f"tm_score_{which}"] = score
+
+    return TMAlignResult(**values)  # type: ignore[arg-type]
+
+
 class StructureOps:
     @staticmethod
     def validate_pdb_id(pdb_id: str) -> str:
@@ -1424,7 +1534,16 @@ class StructureOps:
         if aligned_path is None:
             files = ", ".join(sorted(path.name for path in out_dir.iterdir()))
             raise RuntimeError(f"No TM-align output found in {out_dir}. Files: {files}")
-        return aligned_path, process.stdout
+        # A superposition is two structures, and TM-align never writes them as one file:
+        # aligned.pdb holds structure 1 *rotated onto* structure 2, and structure 2 itself
+        # is the unmoved input. Its own PyMOL script says so --
+        #     cmd.load("aligned.pdb", "structure1")
+        #     cmd.load(".../seg2.pdb", "structure2")
+        # -- so returning only aligned.pdb can render exactly one structure, which is what
+        # the viewer was showing.
+        return TMAlignOutput(
+            superposed=aligned_path, reference=pdb2, report=process.stdout
+        )
 
     @staticmethod
     def build_rin_graph(pdb_path: Path, chain: str = "A", cutoff: float = 8.0, atom_name: str = "CA") -> nx.Graph:
@@ -1675,6 +1794,86 @@ class StructureViewerBuilder:
 """
 
     @staticmethod
+    def superposition_html(
+        superposed_text: str,
+        reference_text: str,
+        label_superposed: str = "Structure 1 (superposed)",
+        label_reference: str = "Structure 2 (reference)",
+    ) -> str:
+        """Draw a TM-align superposition: two structures, one stage, two colours.
+
+        The single-structure viewer cannot express this. It loads one file and paints it
+        uniform grey, so even given both structures the result would be one indistinguishable
+        shape -- the point of a superposition is seeing where the two differ, which needs
+        them told apart by colour.
+
+        Both components share the stage's coordinate frame, which is exactly why the
+        superposition is meaningful: TM-align has already rotated the first structure onto
+        the second, so no alignment happens here.
+        """
+        superposed_colour = "#1f77b4"
+        reference_colour = "#d62728"
+        uid = uuid.uuid4().hex
+        panel_id = f"panel_{uid}"
+        viewport_id = f"viewport_{uid}"
+        return f"""<div style=\"position:relative;width:100%;height:700px;\">
+  <div id=\"{panel_id}\" style=\"position:absolute;top:10px;left:10px;z-index:10;background:rgba(255,255,255,.92);padding:8px 10px;border-radius:8px;font-size:12px;line-height:1.6;\">
+    <b>TM-align superposition</b><br/>
+    <span style=\"display:inline-block;width:10px;height:10px;background:{superposed_colour};border-radius:2px;\"></span>
+    {html.escape(label_superposed)}<br/>
+    <span style=\"display:inline-block;width:10px;height:10px;background:{reference_colour};border-radius:2px;\"></span>
+    {html.escape(label_reference)}
+  </div>
+  <div id=\"{viewport_id}\" style=\"width:100%;height:100%;\"></div>
+</div>
+<script>
+(() => {{
+  const superposedText = {json.dumps(superposed_text)};
+  const referenceText = {json.dumps(reference_text)};
+  const stageEl = document.getElementById('{viewport_id}');
+  if (!stageEl) return;
+
+  const paint = () => {{
+    const stage = new window.NGL.Stage(stageEl, {{ backgroundColor: 'white' }});
+    const load = (text, colour) => stage.loadFile(
+      new Blob([text], {{type: 'text/plain'}}), {{ext: 'pdb'}}
+    ).then(comp => {{ comp.addRepresentation('cartoon', {{color: colour}}); return comp; }});
+
+    // Both must finish before framing the view, or autoView runs on whichever loaded
+    // first and the other sits outside the camera.
+    Promise.all([
+      load(superposedText, '{superposed_colour}'),
+      load(referenceText, '{reference_colour}'),
+    ]).then(() => stage.autoView());
+
+    // These outputs render even while their tab is hidden
+    // (suspend_when_hidden=False), so the stage can be built inside a
+    // zero-sized element and stay blank until something resizes the window.
+    // Watching the element re-frames it the moment it gains a size.
+    if (window.ResizeObserver) {{
+      let framed = stageEl.clientWidth > 0;
+      new ResizeObserver(() => {{
+        // Deferred to the next frame: observing fires mid-layout, and measuring then can
+        // catch a settled height against a width that is still 1px, leaving the canvas a
+        // sliver. Verified -- a later resize corrected it, which is the tell.
+        requestAnimationFrame(() => {{
+          if (!stageEl.clientWidth || !stageEl.clientHeight) return;
+          stage.handleResize();
+          if (!framed) {{ stage.autoView(); framed = true; }}
+        }});
+      }}).observe(stageEl);
+    }}
+    window.addEventListener('resize', () => stage.handleResize());
+  }};
+
+  if (window.NGL) {{ paint(); return; }}
+  const script = document.createElement('script');
+  script.src = 'https://unpkg.com/ngl@2.3.1/dist/ngl.js';
+  script.onload = paint;
+  document.head.appendChild(script);
+}})();
+</script>"""
+
     def b2b_html(pdb_text: str, accession: str, metric: str) -> str:
         safe_accession = html.escape(accession)
         uid = uuid.uuid4().hex

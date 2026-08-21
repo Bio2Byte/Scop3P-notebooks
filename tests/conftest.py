@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 import common.cache as cache_module
+import common.http_lookup as http_lookup_module
 from common.cache import REGISTRY, clear_all
 
 
@@ -39,3 +40,29 @@ def _isolate_structure_cache(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(cache_module, "_STRUCTURE_DIR", None, raising=False)
     yield directory
     monkeypatch.setattr(cache_module, "_STRUCTURE_DIR", None, raising=False)
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "real_backoff: keep the real HTTP backoff table, for tests that inspect it",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _no_retry_backoff(request, monkeypatch):
+    """Remove the real pause between HTTP retries for the duration of a test.
+
+    The backoff exists to be kind to a struggling upstream, which is worth 2.5 seconds in
+    production and pure dead time in a suite -- it took the full run from 5s to 20s. The
+    pause length is zeroed rather than the retry count reduced, so what is under test is
+    still the real retry behaviour.
+    """
+    # A test that asserts on the real table has to see the real table, so it opts out.
+    if request.node.get_closest_marker("real_backoff"):
+        return
+    monkeypatch.setattr(
+        http_lookup_module,
+        "BACKOFF_SECONDS",
+        tuple(0 for _ in http_lookup_module.BACKOFF_SECONDS),
+    )

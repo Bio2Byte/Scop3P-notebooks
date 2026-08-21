@@ -278,6 +278,68 @@ failure mode in exchange for nothing this needs. The point to revisit is if the 
 ever scaled to several worker processes or replicas -- then the sharing becomes genuinely
 cross-process and the trade changes.
 
+### Inlined images are sized for how they are displayed
+
+Every image in the shell is a base64 data URI, so its bytes are paid on **every page load** --
+there is no separate cacheable request to amortise them. The eight partner logos are print
+assets (`elixir-belgium.png` is 2656x1752; `compomics.png` 2544x1036) displayed at 60-120px
+tall, so they were putting **1.07 MB of HTML** in front of every user on every load of every
+protocol.
+
+They are now resized to twice their CSS display height -- 2x so they stay crisp on a
+high-DPI screen -- before being inlined:
+
+| | Before | After |
+|---|---|---|
+| Logo payload | 1091 KB | 120 KB (**89% smaller**) |
+| Whole footer HTML | 1094 KB | 123 KB |
+
+Details that matter:
+
+- **Twice the display height, never more, never upscaled.** Smaller than displayed looks
+  soft; larger is wasted bytes. A test asserts each logo's rendered height equals
+  `min(2 x display height, source height)`.
+- **Aspect ratio preserved.** A squashed partner logo would be worse than a heavy one.
+- **Transparency preserved** (`RGBA`), because these sit on a dark footer -- losing alpha
+  would show a white box behind each one.
+- **Resized once per process,** not per page load, which would trade bandwidth for CPU on
+  every request.
+- **Pillow is transitive** here (via bokeh), not declared, so its absence falls back to the
+  full-size image: wasteful, but a working page.
+
+`tests/unit/test_inlined_images.py` expresses these as a **budget** (200 KB for the footer,
+40 KB per logo) rather than exact sizes, so dropping in another print-resolution asset fails
+there instead of quietly costing a megabyte again.
+
+### The tab icon
+
+Every page load used to log `GET /favicon.ico 404` because nothing answered that request.
+The icon is now declared in the head of the shared shell, derived from
+`apps/assets/images/scop3p.png`, which stops the browser asking for `/favicon.ico` at all --
+tidier than adding a route to six apps *and* the portal, and it works the same whether an
+app is served through the portal or run standalone.
+
+It is downscaled to a 64x64 square before being inlined. The source logo is 82 KB, which
+would be ~120 KB of base64 on *every* page load for something a browser draws at 16-32px,
+and it is wider than it is tall, so a browser fitting it to a square tab box would shrink it
+to the height of the narrower side. Pillow does the resize, and because Pillow is only a
+transitive dependency (via bokeh) rather than a declared one, its absence falls back to the
+full-size image -- wasteful, but a working page. Both that fallback and a missing asset are
+covered by tests, since a cosmetic icon must never take an app down.
+
+### The footer says the toolkit depends on live services
+
+Every protocol is a thin client over other people's services, and those services fail
+transiently: dropped TLS handshakes, connections closed mid-response, truncated JSON
+bodies, connect timeouts. All of those were observed against `rest.uniprot.org` and the EBI
+Proteins API while building this.
+
+`EXTERNAL_RESOURCES_NOTICE` in [`apps/common/ui_shell.py`](common/ui_shell.py) states that
+in the footer of every app, immediately after the tagline. It names the services so a user
+can check a status page rather than guess, and it says explicitly that retrying is worth
+doing -- because without that, a network error reads as "my accession must be wrong". A
+smoke test asserts it appears in every registered app, not just the one it was added to.
+
 ### A failed lookup does not look like an empty result
 
 An empty dropdown after a failed request looked exactly like a protein with no structures,
@@ -311,6 +373,38 @@ guessed:
 A persistent failure still raises: retrying must never turn an outage into a silently empty
 result. File downloads are deliberately excluded and keep a longer timeout, because a large
 structure legitimately takes time.
+
+**Backoff.** Three attempts with a growing pause between them (0.5 s, then 2 s). Retrying
+instantly is the least useful thing to do to a server that is already struggling or shedding
+load: it doubles the instantaneous burst at the moment the far end is asking for less, and
+gives a transient fault no time to pass. The worst case for a completely dead host is
+bounded and measured at **17.5 s** -- politeness, not patience, since the user is waiting.
+
+**A truncated body is retried.** Observed against UniProt: `Expecting ',' delimiter: line 1
+column 88423`. A partial read is a transport fault, but it only becomes visible when
+something parses the body -- *after* the request has already "succeeded" -- so it escaped
+the retry entirely and surfaced as a failed lookup. The parse now happens inside the retry
+loop, either via `lookup_json` (where only the payload is wanted) or via the
+`json_body_validator` passed as `validate=` (where the caller needs the `Response` to check
+a status or content type).
+
+Two things are deliberately **not** retried, because neither is transient:
+
+- **Any non-2xx status.** A 404 or a 500 is an answer. Retrying it wastes the user's time
+  and adds load to a server that already replied.
+- **A 200 whose content type is not JSON.** Scop3P's single-page-app catch-all answers 200
+  with HTML when an endpoint has moved. Parsing it here would retry a permanent condition
+  three times *and* replace the client's actionable "the endpoint has most likely moved"
+  message with a bare JSON error. Existing tests caught that regression when the
+  content-type condition was missing.
+
+Bodies that are not JSON at all -- FASTA, PDB text -- pass straight through unvalidated; a
+truncated FASTA is not detectable by parsing, and `fetch_uniprot_sequence`'s empty-sequence
+check is what catches a badly truncated one.
+
+The test suite zeroes the backoff through an autouse fixture, so the retry behaviour is
+still exercised without spending 2.5 s per failing lookup; a test that asserts on the real
+table opts out with `@pytest.mark.real_backoff`.
 
 ## Docker Compose Services
 
