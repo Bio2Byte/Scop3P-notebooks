@@ -419,11 +419,19 @@ body {
 }
 /* One width for the whole layout, so the content cards line up with the navbar above
    them. They used to disagree -- the shell capped at 1600px while the portal navbar
-   allowed 1800px -- which left the content visibly narrower than the bar over it and
-   wasted a band down each side of a wide screen. Declared as a custom property because
-   the navbar CSS is injected separately by the portal and has to reach the same value. */
+   allowed 1800px -- which left the content visibly narrower than the bar over it.
+   Declared as a custom property because the navbar CSS is injected separately by the
+   portal and has to reach the same value.
+
+   Viewport-relative rather than a fixed pixel cap: any fixed number is wrong for someone.
+   1600px wasted 400px per side on a 2400px screen, and 1920px still wasted nearly a
+   thousand per side on a 4K display. 98vw fills whatever the screen actually is.
+
+   Long prose does not stretch with it -- .scop3p-intro is separately capped at 75ch --
+   so what gets the extra width is what benefits: structure viewers, network diagrams and
+   tables. This property is the single knob if it ever needs pulling back. */
 :root {
-  --scop3p-max-width: 1920px;
+  --scop3p-max-width: 98vw;
 }
 .scop3p-shell {
   max-width: var(--scop3p-max-width);

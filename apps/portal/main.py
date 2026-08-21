@@ -110,7 +110,7 @@ def _selector_navbar(selected_key: str) -> str:
     /* Same width as the content below, from the property ui_shell defines. The literal
        fallback matters: an app served without the portal never loads this CSS, but the
        portal's own selector page does, and it has no ui_shell styles to read from. */
-    max-width: var(--scop3p-max-width, 1920px);
+    max-width: var(--scop3p-max-width, 98vw);
     margin: 0 auto;
     padding: 14px 18px;
     display: flex;
