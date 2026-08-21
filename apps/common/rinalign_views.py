@@ -29,6 +29,8 @@ import hashlib
 import json
 from typing import Any, Iterable
 
+from common.vendor import asset_url
+
 
 def _stable_uid(seed: Iterable[Any]) -> str:
     """Six hex characters derived from the data, stable across interpreter restarts."""
@@ -505,8 +507,8 @@ def force_network_html(diff, GL, GR, lL, lR, ptm_pos=None, var_pos=None):
         window['{uid}F']=function(){{frozen=!frozen;document.getElementById('{uid}fb').textContent=frozen?'Unfreeze':'Freeze';if(frozen){{sim.stop();nodes.forEach(function(d){{d.fx=d.x;d.fy=d.y;}});}}else{{nodes.forEach(function(d){{d.fx=null;d.fy=null;}});sim.alpha(0.3).restart();}}}};
       }}
       if(typeof d3!=='undefined'){{setTimeout(_run,50);}}
-      else if(typeof require!=='undefined'){{try{{require.config({{paths:{{d3:'https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min'}}}});require(['d3'],function(d){{window.d3=d;_run();}});}}catch(e){{var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js';s.onload=_run;document.head.appendChild(s);}}}}
-      else{{var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js';s.onload=_run;document.head.appendChild(s);}}
+      else if(typeof require!=='undefined'){{try{{require.config({{paths:{{d3:'{asset_url("d3").removesuffix(".js")}'}}}});require(['d3'],function(d){{window.d3=d;_run();}});}}catch(e){{var s=document.createElement('script');s.src='{asset_url("d3")}';s.onload=_run;document.head.appendChild(s);}}}}
+      else{{var s=document.createElement('script');s.src='{asset_url("d3")}';s.onload=_run;document.head.appendChild(s);}}
     }})();
     </script>'''
 
@@ -551,7 +553,7 @@ def linked_view_html(diff, GL, GR, lL, lR, pdb_text, pdb_fmt='pdb', chain=None, 
            "<div style='font-size:11px;color:#777;background:#f5f5f3;border-radius:6px;padding:5px 8px;margin-top:6px;'>"
            "Left = force network (same as the standalone view). Right = structure (grey). "
            "Selected residue = orange; its lost contacts = dashed red, gained = solid blue on the 3D.</div>")
-    script = f'''<script src="https://unpkg.com/ngl@latest/dist/ngl.js"></script>
+    script = f'''<script src="{asset_url('ngl')}"></script>
     <script>
     (function(){{
       var DAT={ngl_data}, PDB={pdb_js};

@@ -241,3 +241,99 @@ def test_pillow_being_absent_does_not_break_the_page(monkeypatch) -> None:
     monkeypatch.setattr(ui_shell, "_favicon_cache", None)
 
     assert uri is not None and uri.startswith("data:image/png;base64,")
+
+
+def test_every_app_shows_the_citation() -> None:
+    """A published tool has to tell people how to cite it, from wherever they are."""
+    from common.ui_shell import CITATION
+
+    for key, (_label, _icon, app) in APP_OPTIONS.items():
+        rendered = str(app.ui)
+        assert "please cite" in rendered, f"{key} shows no citation"
+        assert CITATION["doi"] in rendered, f"{key} shows no DOI"
+
+
+def test_the_citation_carries_every_field_from_the_record() -> None:
+    from common.ui_shell import CITATION, scop3p_footer
+
+    rendered = str(scop3p_footer())
+    for field in ("title", "venue", "year", "doi"):
+        assert CITATION[field] in rendered, f"the footer omits the {field}"
+    # First and last author, so a truncated list is caught.
+    assert "Díaz A" in rendered
+    assert "Ramasamy P" in rendered
+
+
+def test_the_doi_is_a_link_that_opens_in_a_new_tab() -> None:
+    """Requested explicitly, and it is the right default: losing the app to a navigation
+    would discard whatever the user had loaded."""
+    from common.ui_shell import CITATION_DOI_URL, scop3p_footer
+
+    rendered = str(scop3p_footer())
+    assert f'href="{CITATION_DOI_URL}"' in rendered
+    assert 'target="_blank"' in rendered
+    assert "noopener" in rendered, (
+        "target=_blank without rel=noopener lets the opened page reach window.opener"
+    )
+
+
+def test_the_doi_link_uses_doi_org_not_a_versioned_preprint_path() -> None:
+    """A DOI keeps resolving if the preprint is published; an "early" biorxiv path may not."""
+    from common.ui_shell import CITATION_DOI_URL
+
+    assert CITATION_DOI_URL.startswith("https://doi.org/")
+    assert "biorxiv.org" not in CITATION_DOI_URL
+
+
+def test_the_citation_sits_above_the_affiliation_logos() -> None:
+    """Where it was asked for: someone looking for how to cite should reach it before the
+    institutional marks."""
+    from common.ui_shell import scop3p_footer
+
+    rendered = str(scop3p_footer())
+    assert rendered.index("please cite") < rendered.index("scop3p-footer-logos")
+
+
+def test_the_latex_escapes_from_the_bibtex_are_resolved() -> None:
+    """The record spells the first author D{\\'\\i}az; a footer must not."""
+    from common.ui_shell import CITATION
+
+    joined = " ".join(CITATION.values())
+    for artefact in ("{", "}", "\\'", "\\`", "\\textendash"):
+        assert artefact not in joined, f"unresolved LaTeX {artefact!r} in the citation"
+
+
+def test_the_navbar_links_to_the_preprint() -> None:
+    """The navbar is the one thing on screen in every protocol, so it is where a reader
+    who has not scrolled to the footer will look."""
+    from common.ui_shell import CITATION_DOI_URL
+
+    with TestClient(portal_app) as client:
+        body = client.get("/?app=structure-viz").text
+
+    assert "read pre-print" in body, "the navbar does not offer the preprint"
+    assert f'href="{CITATION_DOI_URL}"' in body, "the navbar link is not the DOI"
+    assert "Tools for exploring and extending Scop3P" in body, "the subtitle was lost"
+
+
+def test_the_navbar_preprint_link_opens_in_a_new_tab() -> None:
+    """Navigating away would discard whatever the user had loaded in the app."""
+    with TestClient(portal_app) as client:
+        body = client.get("/").text
+
+    marker = body.index("read pre-print")
+    anchor = body.rfind("<a", 0, marker)
+    tag = body[anchor:marker]
+    assert 'target="_blank"' in tag
+    assert "noopener" in tag, "target=_blank without rel=noopener exposes window.opener"
+
+
+def test_the_navbar_and_the_footer_cite_the_same_doi() -> None:
+    """Two links to the same paper must not drift apart."""
+    from common.ui_shell import CITATION, CITATION_DOI_URL
+
+    with TestClient(portal_app) as client:
+        body = client.get("/").text
+
+    assert body.count(CITATION_DOI_URL) >= 2, "navbar and footer do not share the DOI URL"
+    assert CITATION["doi"] in body

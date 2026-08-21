@@ -198,3 +198,42 @@ def test_css_pixel_parsing(value, expected) -> None:
 def test_an_unparseable_height_falls_back_to_the_full_image() -> None:
     """Better a heavy logo than a wrongly-sized one, and never a missing one."""
     assert _scaled_image_data_uri("bio2byte.png", "auto") == _image_data_uri("bio2byte.png")
+
+
+# --------------------------------------------------------------------------------------
+# Browser libraries loaded from CDNs
+# --------------------------------------------------------------------------------------
+
+
+def _source_files():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    files = list((root / "apps").rglob("*.py"))
+    files += list((root / "notebooks" / "topology_viewer" / "topology").rglob("*.py"))
+    return [path for path in files if "__pycache__" not in str(path)]
+
+
+def test_no_browser_library_is_loaded_unpinned() -> None:
+    """``@latest`` makes the app's behaviour depend on when it is opened.
+
+    Four NGL references were unpinned while others pinned 2.3.1, so a breaking upstream
+    release would have broken those views with no change on our side -- and two viewers in
+    the same app could have loaded different versions of the same library.
+    """
+    offenders = []
+    for path in _source_files():
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if "@latest" in line and ("http" in line or "cdn" in line.lower()):
+                offenders.append(f"{path.name}:{number}")
+    assert not offenders, f"unpinned CDN references at {offenders}"
+
+
+def test_one_ngl_version_across_the_toolkit() -> None:
+    """Two versions of NGL in one process is a debugging trap."""
+    import re
+
+    versions = set()
+    for path in _source_files():
+        versions.update(re.findall(r"ngl@([0-9][0-9a-z.]*)", path.read_text(encoding="utf-8")))
+    assert len(versions) <= 1, f"NGL is referenced at several versions: {sorted(versions)}"

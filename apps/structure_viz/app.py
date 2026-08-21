@@ -39,6 +39,7 @@ from common.busy import (  # noqa: E402
     task_button,
     task_outcome,
 )
+from common.vendor import enable_compression, static_assets  # noqa: E402
 from common.logging_utils import get_logger, new_trail  # noqa: E402
 from common.structure_labels import (  # noqa: E402
     ALL_CHAINS_PLACEHOLDER,
@@ -1410,4 +1411,9 @@ content_ui = ui.div(
     app_ui, scop3p_footer()
 )
 
-app = App(content_ui, server)
+# static_assets serves the vendored browser libraries; every app mounts the same prefix,
+# so /vendor/... resolves whichever app the portal is serving. enable_compression is not
+# optional cosmetics: Shiny sends static files raw, and molstar.js is 5 MB uncompressed
+# against 1.45 MB gzipped, so without it vendoring would put more bytes on the wire.
+app = App(content_ui, server, static_assets=static_assets())
+enable_compression(app)

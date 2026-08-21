@@ -8,7 +8,11 @@ from urllib.parse import parse_qsl, urlencode
 
 from starlette.datastructures import Headers, MutableHeaders
 
+from starlette.middleware.gzip import GZipMiddleware
+
+from common import vendor
 from common.logging_utils import get_logger
+from common.ui_shell import CITATION_DOI_URL
 from help.app import app as help_app
 from mutation_effect.app import app as mutation_effect_app
 from peptide_mapper.app import app as peptide_mapper_app
@@ -135,6 +139,15 @@ def _selector_navbar(selected_key: str) -> str:
     color: rgba(255,255,255,0.72);
     font-size: 0.88rem;
   }}
+  .toolkit-preprint {{
+    color: rgba(255,255,255,0.92);
+    text-decoration: underline;
+    text-decoration-color: rgba(255,255,255,0.35);
+    text-underline-offset: 2px;
+  }}
+  .toolkit-preprint:hover {{
+    text-decoration-color: rgba(255,255,255,0.9);
+  }}
   .toolkit-links {{
     display: flex;
     flex-wrap: wrap;
@@ -176,7 +189,7 @@ def _selector_navbar(selected_key: str) -> str:
       <img class="toolkit-brand-logo" src="{logo_src}" alt="Scop3P logo" />
       <div class="toolkit-brand-copy">
         <strong>Scop3P-Toolkit</strong>
-        <span>Tools for exploring and extending Scop3P</span>
+        <span>Tools for exploring and extending Scop3P (<a class="toolkit-preprint" href="{CITATION_DOI_URL}" target="_blank" rel="noopener noreferrer">read pre-print</a>)</span>
       </div>
     </div>
     <nav class="toolkit-links" aria-label="Tools for exploring and extending Scop3P">
@@ -238,6 +251,13 @@ class SingleRootPortal:
         method = scope.get("method", "GET").upper()
         should_inject = path == "/" and method == "GET"
 
+        # This portal rewrites the app's HTML to inject the navbar, so it must never be
+        # handed a compressed body -- injecting into gzip bytes produces something the
+        # browser cannot decode ("incorrect header check"). Dropping Accept-Encoding on the
+        # way in keeps the app's response plain; the portal is itself wrapped in
+        # GZipMiddleware, so what reaches the client is still compressed.
+        scope = _without_accept_encoding(scope)
+
         if not should_inject:
             async def passthrough(message):  # noqa: ANN001
                 if message["type"] == "http.response.start":
@@ -294,4 +314,19 @@ class SingleRootPortal:
                 return
 
 
-app = SingleRootPortal()
+def _without_accept_encoding(scope: dict) -> dict:
+    """A copy of the scope with the Accept-Encoding request header removed."""
+    headers = [
+        (name, value)
+        for name, value in scope.get("headers", [])
+        if name.lower() != b"accept-encoding"
+    ]
+    return {**scope, "headers": headers}
+
+
+# Compression is applied here, outside the navbar injection, so it acts on the final body.
+# It covers both the HTML (~380 KB, and base64-heavy, so it compresses well) and the
+# vendored browser libraries proxied through from the selected app.
+app = GZipMiddleware(
+    SingleRootPortal(), minimum_size=vendor.COMPRESSION_MINIMUM_BYTES
+)

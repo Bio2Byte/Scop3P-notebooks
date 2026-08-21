@@ -278,6 +278,64 @@ failure mode in exchange for nothing this needs. The point to revisit is if the 
 ever scaled to several worker processes or replicas -- then the sharing becomes genuinely
 cross-process and the trade changes.
 
+### Browser libraries are served by the app, not a CDN
+
+Every 3D view and network diagram is drawn by a library fetched at runtime. Measured before
+this change, that was **2.07 MB from three hosts** on every cold load -- three DNS + TCP +
+TLS handshakes, roughly 0.25 s of connection setup before any library byte arrived, and Mol*
+alone taking **2.6 s** from jsdelivr.
+
+`apps/common/vendor.py` holds the manifest; `scripts/fetch-vendor-assets.py` downloads it at
+image build time into `/opt/scop3p/vendor`, which every app mounts at `/vendor`. Measured
+end to end, same four assets:
+
+| | From the CDNs | Served locally |
+|---|---|---|
+| Mol\* 4.18.0 | 342 ms | 216 ms |
+| NGL 2.3.1 | 307 ms | 43 ms |
+| D3 7.9.0 | 218 ms | 12 ms |
+| Mol\* CSS | 529 ms | 6 ms |
+| **Total** | **1396 ms** | **278 ms** |
+
+Five times faster on this connection, with byte-identical transfers. That figure is
+localhost, so treat it as the best case: a remote deployment still saves every handshake and
+the CDN variability (note the 529 ms for a 16 KB stylesheet), but transfer time then depends
+on the link.
+
+The reliability argument is the stronger one. A bad five minutes at unpkg or jsdelivr used to
+break every 3D view in the toolkit, with no more recourse than we had when UniProt was
+dropping handshakes. Vendoring also makes a figure reproducible: the exact library ships in
+the image, next to the versions already recorded in `metadata.yml`.
+
+Four things that are easy to get wrong here, all of them load-bearing:
+
+- **Compression is not optional.** Shiny serves static files raw. Vendoring `molstar.js`
+  without gzip puts **5.16 MB** on the wire against 1.45 MB from the CDN -- 3.5x *worse*,
+  and invisible on localhost. `enable_compression` adds gzip to each app's Starlette layer;
+  it also compresses the HTML, which is worth as much again (85% on a page of inlined
+  base64). GZipMiddleware only touches `http` scopes, so Shiny's reactive websocket is
+  untouched.
+- **The portal must not be handed a compressed body.** It rewrites the app's HTML to inject
+  the navbar, and injecting into gzip bytes produced "incorrect header check" in the
+  browser. It strips `Accept-Encoding` inbound and compresses its own output instead.
+- **Exports keep the CDN.** The apps display and download the same HTML string.
+  `/vendor/ngl-2.3.1.js` resolves only inside the container, so `to_portable()` rewrites
+  local URLs back to the pinned CDN before HTML leaves the app -- otherwise a downloaded
+  file works for the person who made it and is broken for everyone they send it to.
+- **Falling back is normal.** `shiny run` from a checkout has no vendor directory. Every URL
+  resolves locally when the file exists and to the *pinned* CDN URL when it does not, so a
+  fallback still loads the version that was tested.
+
+The topology viewer's Mol\* and NGL URLs live in `notebooks/topology_viewer/topology`, which
+is shared with the Voila notebook and its own test suite. That package is left alone and its
+URLs are retargeted by `rewrite_cdn_urls()` at the boundary where the Shiny app embeds its
+HTML.
+
+Each asset carries a pinned `sha256`, so a CDN serving different bytes for a pinned version
+fails the build rather than shipping quietly. Note the trade: the **build** now depends on
+the CDNs even though the **runtime** does not. That is the right way round -- a build failure
+is visible to whoever is building, while a runtime failure lands on a user mid-experiment.
+
 ### Inlined images are sized for how they are displayed
 
 Every image in the shell is a base64 data URI, so its bytes are paid on **every page load** --
@@ -326,6 +384,29 @@ to the height of the narrower side. Pillow does the resize, and because Pillow i
 transitive dependency (via bokeh) rather than a declared one, its absence falls back to the
 full-size image -- wasteful, but a working page. Both that fallback and a missing asset are
 covered by tests, since a cosmetic icon must never take an app down.
+
+### The footer carries the citation
+
+`CITATION` in [`apps/common/ui_shell.py`](common/ui_shell.py) holds the preprint's fields --
+authors, title, venue, year, DOI -- transcribed from the BibTeX record with its LaTeX
+escapes resolved (`D{\'\i}az` becomes `Díaz`). Rendered above the affiliation logos, so
+someone looking for how to cite the work reaches it before the institutional marks.
+
+The DOI is a link that opens in a new tab, with `rel="noopener noreferrer"`: without that,
+the opened page can reach back through `window.opener`. It points at `doi.org` rather than
+the versioned `biorxiv.org/content/early/...` path from the record, because a DOI keeps
+resolving if the preprint is published in a journal. Verified: `doi.org` returns a 302 to
+bioRxiv for this DOI.
+
+Kept as fields rather than one formatted string so the DOI can be linked separately and so
+tests can check the rendered footer against the record -- including that the first and last
+author both survive, which catches a truncated list.
+
+The navbar subtitle carries the same link: *Tools for exploring and extending Scop3P (read
+pre-print)*. The navbar is the one element present in every protocol, so it reaches a reader
+who never scrolls to the footer. Both links resolve from `CITATION_DOI_URL`, and a test
+asserts the rendered page contains that URL at least twice -- two links to the same paper
+must not drift apart.
 
 ### The footer says the toolkit depends on live services
 

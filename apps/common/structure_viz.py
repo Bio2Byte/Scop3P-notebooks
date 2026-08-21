@@ -21,6 +21,7 @@ from b2bTools import SingleSeq, constants
 from scipy.spatial import KDTree
 
 from common import http_lookup as http_lookup_module
+from common.vendor import asset_url
 from common.cache import (
     PREDICTION_MAX_ENTRIES,
     PREDICTION_TTL_SECONDS,
@@ -1785,7 +1786,7 @@ class StructureViewerBuilder:
 
   if (window.NGL) {{ paint(); return; }}
   const s = document.createElement('script');
-  s.src = 'https://unpkg.com/ngl@latest/dist/ngl.js';
+  s.src = '{asset_url("ngl")}';
   s.onload = paint;
   s.onerror = () => {{ panelEl.innerHTML += '<div style="color:#b00020">Could not load NGL assets.</div>'; }};
   document.head.appendChild(s);
@@ -1868,7 +1869,7 @@ class StructureViewerBuilder:
 
   if (window.NGL) {{ paint(); return; }}
   const script = document.createElement('script');
-  script.src = 'https://unpkg.com/ngl@2.3.1/dist/ngl.js';
+  script.src = '{asset_url("ngl")}';
   script.onload = paint;
   document.head.appendChild(script);
 }})();
@@ -1901,7 +1902,7 @@ class StructureViewerBuilder:
   }};
   if (window.NGL) {{ paint(); return; }}
   const s = document.createElement('script');
-  s.src = 'https://unpkg.com/ngl@latest/dist/ngl.js';
+  s.src = '{asset_url("ngl")}';
   s.onload = paint;
   s.onerror = () => {{ panelEl.innerHTML += '<div style="color:#b00020">Could not load NGL assets.</div>'; }};
   document.head.appendChild(s);

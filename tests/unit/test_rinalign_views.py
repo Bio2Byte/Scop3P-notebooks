@@ -84,6 +84,10 @@ ANCHORS = {
     "summary": ["Jaccard", "Conserved", "Lost", "Gained"],
     "contact_map": ["getContext('2d')", "addEventListener('wheel'", "<canvas"],
     "aligned": ["<svg", "viewBox"],
+    # The CDN URL, not the vendored path: tests/conftest.py pins vendoring off so rendered
+    # HTML is the same wherever the suite runs. Resolving it here instead would be worse --
+    # this dict is built at import time, before that fixture applies, so it would disagree
+    # with the HTML the test actually renders.
     "force": ["d3.forceSimulation", "forceLink", "cdnjs.cloudflare.com/ajax/libs/d3"],
     "linked": list(BRIDGE_TOKENS),
 }

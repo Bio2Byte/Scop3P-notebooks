@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
+from common.vendor import enable_compression, static_assets  # noqa: E402
 from common.logging_utils import get_logger, new_trail  # noqa: E402
 from common.ui_shell import scop3p_card, scop3p_footer, scop3p_shell  # noqa: E402
 
@@ -371,4 +372,9 @@ content_ui = ui.div(
     app_ui, scop3p_footer()
 )
 
-app = App(content_ui, server)
+# static_assets serves the vendored browser libraries; every app mounts the same prefix,
+# so /vendor/... resolves whichever app the portal is serving. enable_compression is not
+# optional cosmetics: Shiny sends static files raw, and molstar.js is 5 MB uncompressed
+# against 1.45 MB gzipped, so without it vendoring would put more bytes on the wire.
+app = App(content_ui, server, static_assets=static_assets())
+enable_compression(app)

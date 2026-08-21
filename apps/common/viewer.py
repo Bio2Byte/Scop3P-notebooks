@@ -4,6 +4,8 @@ import html
 import json
 from pathlib import Path
 
+from common.vendor import asset_url, to_portable
+
 
 class NGLViewerBuilder:
     """Builds NGL HTML payload for inline render and export."""
@@ -118,7 +120,7 @@ class NGLViewerBuilder:
       }}
 
       const nglScript = document.createElement("script");
-      nglScript.src = "https://unpkg.com/ngl@latest/dist/ngl.js";
+      nglScript.src = "{asset_url('ngl')}";
       nglScript.async = true;
       nglScript.onload = renderStage;
       nglScript.onerror = () => showError("Could not load NGL viewer assets.");
@@ -131,5 +133,11 @@ class NGLViewerBuilder:
 
     @staticmethod
     def export_html(path: Path, html_payload: str) -> None:
+        """Write the viewer HTML to a file the user can open anywhere.
+
+        The payload is made portable on the way out: it is rendered with the app's local
+        copy of NGL, which does not exist outside the container, so an exported file would
+        work only for the person who made it.
+        """
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(html_payload, encoding="utf-8")
+        path.write_text(to_portable(html_payload), encoding="utf-8")

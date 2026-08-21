@@ -121,6 +121,24 @@ COPY --chmod=755 TM-align /usr/local/bin/TM-align
 # for a library, and PYTHONDONTWRITEBYTECODE=1 means no __pycache__ write is tried.
 COPY ./notebooks/topology_viewer/topology /opt/scop3p/topology_viewer/topology
 
+# Vendored browser libraries: NGL, Mol* and D3, fetched once at build time so the running
+# app never depends on a public CDN. Measured before this, the toolkit pulled 2.07 MB from
+# three hosts on every cold load -- three DNS+TCP+TLS handshakes, and Mol* alone took 2.6 s
+# from jsdelivr. Worse, a bad five minutes at unpkg broke every 3D view with no recourse.
+#
+# The trade is deliberate: the *build* now needs the CDNs even though the *runtime* does
+# not. A build failure is visible to whoever is building; a runtime failure lands on a user
+# mid-experiment. The fetch verifies a pinned sha256 per file, so a CDN serving different
+# bytes for a pinned version fails the build instead of shipping quietly.
+#
+# Placed before the ./apps COPY so editing app code does not invalidate this layer.
+COPY scripts/fetch-vendor-assets.py /tmp/fetch-vendor-assets.py
+COPY apps/common/vendor.py /tmp/vendor.py
+RUN SCOP3P_VENDOR_MANIFEST=/tmp/vendor.py \
+        python /tmp/fetch-vendor-assets.py --dest /opt/scop3p/vendor \
+    && rm -f /tmp/fetch-vendor-assets.py /tmp/vendor.py \
+    && ls -la /opt/scop3p/vendor
+
 # Drop pip from the runtime. Nothing installs packages at run time, and pip carries a
 # vendored copy of msgpack and urllib3 that scanners flag with no way to patch them
 # independently. setuptools is kept, because libraries still import pkg_resources.

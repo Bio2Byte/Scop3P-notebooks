@@ -66,3 +66,23 @@ def _no_retry_backoff(request, monkeypatch):
         "BACKOFF_SECONDS",
         tuple(0 for _ in http_lookup_module.BACKOFF_SECONDS),
     )
+
+
+@pytest.fixture(autouse=True)
+def _no_vendored_assets(tmp_path_factory, monkeypatch):
+    """Resolve browser libraries to their CDN URLs unless a test says otherwise.
+
+    Whether assets are vendored is a property of the environment: the image has
+    /opt/scop3p/vendor, a checkout does not, and CI may have either. Left unpinned, any test
+    asserting on rendered view HTML passes or fails depending on where it runs -- which is
+    how a rinalign view test started failing only inside the image.
+
+    Tests that care about vendoring set SCOP3P_VENDOR_DIR themselves, and that wins over
+    this because it is checked first.
+    """
+    import common.vendor as vendor_module
+
+    empty = tmp_path_factory.mktemp("no-vendor")
+    monkeypatch.delenv("SCOP3P_VENDOR_DIR", raising=False)
+    monkeypatch.setattr(vendor_module, "DEFAULT_VENDOR_DIR", empty / "absent")
+    monkeypatch.setattr(vendor_module, "_repo_vendor_dir", lambda: None)

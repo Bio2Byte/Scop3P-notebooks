@@ -37,6 +37,11 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
 from common.busy import busy_indicators, task_button
+from common.vendor import (  # noqa: E402
+    enable_compression,
+    rewrite_cdn_urls,
+    static_assets,
+)
 from common.logging_utils import get_logger, new_trail
 from common.structure_labels import ALPHAFOLD_OPTION_LABEL, structure_option_label  # noqa: E402
 from common.topology_bridge import (  # noqa: E402
@@ -630,16 +635,23 @@ def server(input, output, session):
 
         sites = list(ptm_sites.get()) + list(variant_sites.get())
         show = bool(sites) and loaded_mode.get() == "accession"
+        # The package's JS names its Mol* and NGL CDN URLs inline, and that package is
+        # shared with the Voila notebook and its own test suite -- so it is left alone and
+        # the URLs are retargeted here, at the boundary where its HTML is embedded. Mol* is
+        # the largest single asset in the toolkit (1.45 MB gzipped, measured at 2.6 s from
+        # jsdelivr), so this is where vendoring pays most.
         return ui.HTML(
-            build_view(
-                structure_value,
-                chain,
-                source.get(),
-                height=VIEWER_HEIGHT,
-                sites=sites if show else None,
-                numbering=numbering.get() if show else None,
-                accession=accession_loaded.get(),
-                notes=notes.get(),
+            rewrite_cdn_urls(
+                build_view(
+                    structure_value,
+                    chain,
+                    source.get(),
+                    height=VIEWER_HEIGHT,
+                    sites=sites if show else None,
+                    numbering=numbering.get() if show else None,
+                    accession=accession_loaded.get(),
+                    notes=notes.get(),
+                )
             )
         )
 
@@ -649,4 +661,9 @@ content_ui = ui.div(
     app_ui, scop3p_footer()
 )
 
-app = App(content_ui, server)
+# static_assets serves the vendored browser libraries; every app mounts the same prefix,
+# so /vendor/... resolves whichever app the portal is serving. enable_compression is not
+# optional cosmetics: Shiny sends static files raw, and molstar.js is 5 MB uncompressed
+# against 1.45 MB gzipped, so without it vendoring would put more bytes on the wire.
+app = App(content_ui, server, static_assets=static_assets())
+enable_compression(app)

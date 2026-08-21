@@ -273,6 +273,54 @@ EXTERNAL_RESOURCES_NOTICE = (
 )
 
 
+#: The preprint describing the toolkit. Kept as fields rather than one pre-formatted string
+#: so the DOI can be linked, and so a test can check the rendered footer against them.
+#: Transcribed from the BibTeX record, with its LaTeX escapes resolved (D{\'\i}az -> Díaz,
+#: Adri{\'a}n -> Adrián).
+CITATION = {
+    "authors": (
+        "Díaz A, Tichshenko N, Depoortere B, Andrade Buono R, De Geest P, "
+        "Vranken WF, Martens L, Ramasamy P"
+    ),
+    "title": (
+        "Scop3P-Toolkit: executable structure-aware workflows linking PTMs, "
+        "peptides, and mutations to protein function"
+    ),
+    "venue": "bioRxiv",
+    "year": "2026",
+    "doi": "10.64898/2026.08.04.742789",
+}
+
+#: doi.org rather than the biorxiv URL in the record: a DOI keeps resolving if the preprint
+#: is published in a journal, where the "early" biorxiv path would not.
+CITATION_DOI_URL = f"https://doi.org/{CITATION['doi']}"
+
+
+def citation_tags() -> list[ui.Tag]:
+    """The "please cite" block, for the footer.
+
+    Placed above the affiliation logos: whoever is looking for how to cite the work should
+    reach it before the institutional marks, not after them.
+    """
+    return [
+        ui.p("If you use Scop3P-Toolkit, please cite:", class_="scop3p-footer-head"),
+        ui.p(
+            f"{CITATION['authors']}. ",
+            ui.em(f"{CITATION['title']}. "),
+            f"{CITATION['venue']} ({CITATION['year']}). ",
+            # target="_blank" with rel="noopener": without it the opened page can reach
+            # back through window.opener.
+            ui.a(
+                f"doi:{CITATION['doi']}",
+                href=CITATION_DOI_URL,
+                target="_blank",
+                rel="noopener noreferrer",
+            ),
+            class_="scop3p-footer-copy scop3p-footer-citation",
+        ),
+    ]
+
+
 def scop3p_footer() -> ui.Tag:
     return ui.tags.footer(
         ui.div(
@@ -291,6 +339,7 @@ def scop3p_footer() -> ui.Tag:
                     EXTERNAL_RESOURCES_NOTICE,
                     class_="scop3p-footer-copy scop3p-footer-notice",
                 ),
+                *citation_tags(),
                 ui.div(*_footer_logo_tags(), class_="scop3p-footer-logos"),
                 ui.p(
                     "Licensed under Apache 2.0.", 
@@ -559,6 +608,11 @@ body {
   font-size: 0.9em;
   line-height: 1.5;
   color: rgba(247,250,252,0.68);
+}
+.scop3p-footer-citation {
+  font-size: 0.9em;
+  line-height: 1.5;
+  margin-bottom: 14px;
 }
 .scop3p-footer-logos {
   display: flex;
