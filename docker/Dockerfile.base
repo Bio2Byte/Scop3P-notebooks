@@ -89,15 +89,19 @@ ENV VIRTUAL_ENV=/opt/venv \
 # session_metadata.py's version-probe table, which degrades to a null entry when a
 # binary is absent. So perl goes, and metadata.yml simply records t_coffee as absent.
 #
+# hmmer is deliberately not installed. Its only consumer is b2bTools' PSPer predictor,
+# which no protocol runs -- the toolkit uses DynaMine, DisoMine and EFoldMine. Its absence
+# produces one import-time warning, which quiet_third_party captures to DEBUG, and
+# session_metadata records it as absent. Add it back here if a protocol ever needs PSPer.
+#
 # --allow-remove-essential is required because Debian flags perl-base as essential.
 # Removal must come last, after every apt install, since some maintainer scripts need
 # perl. Re-run `make scan` after touching this block.
-# RUN apt-get update && \
-#     apt-get -y --no-install-recommends upgrade && \
-#     # apt-get install -y --no-install-recommends hmmer && \
-#     apt-get -y --allow-remove-essential remove perl-base && \
-#     apt-get -y autoremove && \
-#     rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get -y --no-install-recommends upgrade && \
+    apt-get -y --allow-remove-essential remove perl-base && \
+    apt-get -y autoremove && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system scop3p && \
     useradd --system --gid scop3p --create-home --home-dir /home/scop3p scop3p && \
