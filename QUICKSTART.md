@@ -46,19 +46,20 @@ cached. App images build in about a second each once the base exists.
 
 ### Or pull the published image
 
-The published image is `bio2byte/scop3p-toolkit`; `v0.4.0` is the first release with
+The published image is `bio2byte/scop3p-toolkit`; `v0.3.2` was the first release with
 all five apps:
 
 ```bash
-docker run --rm -p 8000:8000 bio2byte/scop3p-toolkit:v0.4.0
+docker run --rm -p 8000:8000 bio2byte/scop3p-toolkit:v0.3.3
 ```
 
-- **Pin an explicit version, `v0.4.0` or newer.** Older tags predate the Topology
+- **Pin an explicit version, `v0.3.2` or newer.** Older tags predate the Topology
   Viewer, RIN Alignment and the peptide upload mode — `v0.2.5` gives you three apps,
   not five.
-- **`latest` tracks releases from `v0.4.0` onward.** CI moves `latest` on every `v*`
-  tag it publishes. Pinning an explicit version is still the reproducible choice —
-  `latest` tells you nothing about which release you got.
+- **`latest` tracks recent releases.** It is pushed by hand for the `v0.3.x` releases
+  and moves automatically with CI from `v0.4.0` onward. Pinning an explicit version is
+  still the reproducible choice — `latest` tells you nothing about which release you
+  got.
 
 ### Jump straight to one app
 
@@ -281,7 +282,7 @@ non-absolute root, so the tree page loads but every notebook you click returns H
 ## If something does not work
 
 **The navbar only shows three apps.** You are running an old published image. Pull
-`v0.4.0` or newer (see the top of this document); tags before it predate the Topology
+`v0.3.2` or newer (see the top of this document); tags before it predate the Topology
 Viewer, RIN Alignment and the peptide upload mode.
 
 **`ModuleNotFoundError: No module named 'common'`.** Missing `PYTHONPATH=apps` on a local

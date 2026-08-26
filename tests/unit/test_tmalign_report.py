@@ -218,7 +218,7 @@ def test_the_two_structures_are_drawn_in_different_colours() -> None:
     import re
 
     html = _view()
-    colours = set(re.findall(r"load\(\w+, '(#[0-9a-fA-F]{6})'\)", html))
+    colours = set(re.findall(r"load\(\w+, '(#[0-9a-fA-F]{6})'", html))
     assert len(colours) == 2, f"expected two distinct cartoon colours, got {colours}"
 
 
@@ -256,8 +256,61 @@ def test_labels_are_escaped() -> None:
     assert "&lt;script&gt;" in html
 
 
+def test_region_selection_limits_both_cartoons() -> None:
+    from common.structure_viz import StructureViewerBuilder
+
+    html = StructureViewerBuilder.superposition_html(
+        SUPERPOSED, REFERENCE, region_sele="700-720"
+    )
+    assert '"700-720"' in html
+    # The default stays the whole protein.
+    assert '"protein"' in StructureViewerBuilder.superposition_html(SUPERPOSED, REFERENCE)
+
+
+def test_site_overlay_reaches_the_viewer_with_style_and_targets() -> None:
+    from common.structure_viz import StructureViewerBuilder
+
+    html = StructureViewerBuilder.superposition_html(
+        SUPERPOSED,
+        REFERENCE,
+        site_sele="713 or 720-722",
+        site_rep="spacefill",
+        sites_on_superposed=True,
+        sites_on_reference=False,
+        settings_note="Sites: PTMs | region: aligned",
+    )
+    assert '"713 or 720-722"' in html
+    assert '"spacefill"' in html
+    # Per-component gating is data the script reads, not duplicated code paths.
+    assert "load(superposedText, '#d62728', 0.85, true)" in html
+    assert "load(referenceText, '#1f77b4', 0.6, false)" in html
+    assert "selected sites" in html
+    assert "Sites: PTMs | region: aligned" in html
+
+
+def test_no_site_selection_means_no_site_legend() -> None:
+    from common.structure_viz import StructureViewerBuilder
+
+    html = StructureViewerBuilder.superposition_html(SUPERPOSED, REFERENCE)
+    assert "selected sites" not in html
+
+
+def test_colour_roles_match_the_notebook() -> None:
+    """Red = structure 1 (superposed), blue = structure 2 (reference)."""
+    from common.structure_viz import StructureViewerBuilder
+
+    html = StructureViewerBuilder.superposition_html(SUPERPOSED, REFERENCE)
+    assert "load(superposedText, '#d62728'" in html
+    assert "load(referenceText, '#1f77b4'" in html
+
+
 def test_the_app_renders_a_superposition_not_a_single_structure() -> None:
-    """Pins the call site: the single-structure viewer cannot express this."""
+    """Pins the call sites: the single-structure viewer cannot express this.
+
+    Rendering lives in _render_tm_view (shared by the run handler and the
+    highlight-setting redraw), so that is where superposition_html must appear; the
+    run handler must delegate to it.
+    """
     import ast
     from pathlib import Path
 
@@ -266,15 +319,21 @@ def test_the_app_renders_a_superposition_not_a_single_structure() -> None:
     ).read_text(encoding="utf-8")
     tree = ast.parse(source)
 
-    handler = next(
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef) and node.name == "_run_tmalign"
-    )
-    body = ast.get_source_segment(source, handler) or ""
-    assert "superposition_html" in body, "TM-align no longer renders a superposition"
-    assert "ptm_html" not in body, (
-        "the single-structure viewer is back in the TM-align handler; it paints one "
-        "uniform-grey structure and cannot show where two differ"
-    )
+    def _body(name: str) -> str:
+        node = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == name
+        )
+        return ast.get_source_segment(source, node) or ""
+
+    renderer = _body("_render_tm_view")
+    handler = _body("_run_tmalign")
+    assert "superposition_html" in renderer, "TM-align no longer renders a superposition"
+    assert "_render_tm_view" in handler, "the run handler no longer draws its result"
+    for body in (renderer, handler):
+        assert "ptm_html" not in body, (
+            "the single-structure viewer is back in the TM-align path; it paints one "
+            "uniform-grey structure and cannot show where two differ"
+        )
     assert "alignment.reference" in body, "the reference structure is not being rendered"

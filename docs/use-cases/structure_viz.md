@@ -17,8 +17,10 @@ Explore PTMs, disease variants, structures, biophysical predictions, residue int
 6. Show prediction table and render metric-driven 3D coloring on structure.
 7. Build RIN from uploaded/downloaded PDB and visualize interactive pyvis network, coloured
    either by PTM/variant status or by a predicted Bio2Byte property.
-8. Compare two structures -- uploaded, or picked from the accession's PDB entries -- with
-   TM-align, optionally limited by chain/range, and inspect the aligned view.
+8. Compare two structures -- uploaded, the accession's AlphaFold model, or picked from the
+   accession's PDB entries -- with TM-align, optionally limited by chain/range, and inspect
+   the aligned view: whole structures or the aligned region only, with optional PTM/variant
+   site markers (choice of sites, style, and which structure carries them).
 
 ## Parity Notes
 - `ipywidgets` tabs/buttons are mapped to Shiny tabs and action buttons.
@@ -217,6 +219,31 @@ Notes:
   the whole summary, and a missing value is omitted rather than reported as zero.
 - A unit test pins the parser, and a second pins the *call site* -- a correct parser handed
   one line is still the original bug, and the parser tests pass either way.
+
+### Site overlays and the aligned region
+
+The tab carries the notebook's four highlight controls: **Highlight sites** (none / PTMs /
+variants / their overlap / all), **Site style** (sticks, sphere, ball+stick), **Sites on**
+(both structures, or either one -- relabelled with the actual structure names after a run),
+and **Show region** (full structures, or the aligned region only). Site positions come from
+the PTMs and variants fetched on tabs 1 and 2 and are applied in UniProt numbering to both
+structures, as the notebook does -- the tab assumes the two share that numbering. The
+aligned region is the overlap of the two input ranges; when "aligned" is selected the sites
+are filtered to it as well.
+
+Changing any highlight control redraws the cached superposition without re-running
+TM-align, mirroring the notebook's observe-and-redraw behaviour.
+
+To make those UniProt-numbered selections land on the right residues, the superposition is
+computed from TM-align's rotation matrix (`-m`) applied to structure 1's own coordinates
+(`StructureOps.run_tmalign_matrix`), so the aligned file keeps structure 1's chain IDs and
+residue numbers -- the `-o` sup file guarantees neither. Colour roles follow the notebook:
+red = structure 1 (superposed, more opaque), blue = structure 2 (reference), grey = site
+markers.
+
+Either side of the comparison can also be the accession's **AlphaFold model**, offered in
+the same dropdown as the PDB entries (the idiom RIN Alignment uses); it reuses the model
+tab 3 fetched, or downloads it once.
 
 ## Shared UI conventions
 

@@ -561,6 +561,51 @@ def test_set_protein_costs_one_uniprot_request(monkeypatch, tmp_path: Path) -> N
 
 
 # --------------------------------------------------------------------------------------
+# The TM-align tab's site overlay: positions by mode, NGL selections, style names
+# --------------------------------------------------------------------------------------
+
+
+def _sites_frame(positions) -> pd.DataFrame:  # noqa: ANN001
+    return pd.DataFrame({"position": positions})
+
+
+def test_tm_site_positions_by_mode() -> None:
+    from common.structure_viz import tm_site_positions
+
+    ptms = _sites_frame([10, 20, 30])
+    variants = _sites_frame([20, 40])
+    assert tm_site_positions(ptms, variants, "ptm") == [10, 20, 30]
+    assert tm_site_positions(ptms, variants, "mut") == [20, 40]
+    assert tm_site_positions(ptms, variants, "overlap") == [20]
+    assert tm_site_positions(ptms, variants, "both") == [10, 20, 30, 40]
+    assert tm_site_positions(ptms, variants, "none") == []
+
+
+def test_tm_site_positions_tolerates_missing_data() -> None:
+    from common.structure_viz import tm_site_positions
+
+    assert tm_site_positions(None, None, "both") == []
+    assert tm_site_positions(pd.DataFrame(), _sites_frame(["7", None, "bad"]), "both") == [7]
+
+
+def test_ngl_selection_collapses_runs_and_appends_the_chain() -> None:
+    from common.structure_viz import ngl_selection_from_residues
+
+    assert ngl_selection_from_residues([5, 1, 2, 3, 9]) == "1-3 or 5 or 9"
+    assert ngl_selection_from_residues([7], chain="a") == "(7) and :A"
+    assert ngl_selection_from_residues([]) == ""
+
+
+def test_site_representation_names_map_to_ngl() -> None:
+    from common.structure_viz import site_representation_name
+
+    assert site_representation_name("stick") == "licorice"
+    assert site_representation_name("sphere") == "spacefill"
+    assert site_representation_name("ballstick") == "ball+stick"
+    assert site_representation_name("") == "licorice"
+
+
+# --------------------------------------------------------------------------------------
 # Bio2Byte colouring of the residue interaction network
 # --------------------------------------------------------------------------------------
 

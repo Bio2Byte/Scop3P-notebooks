@@ -23,6 +23,7 @@ from common.structure_viz import (  # noqa: E402
     chain_choices_for_pdb,
     fetch_uniprot_entry_json,
     identity_mapping,
+    ngl_selection_from_residues,
     numeric_b2b_columns,
     parse_protein_summary,
     parse_tmalign_report,
@@ -30,6 +31,8 @@ from common.structure_viz import (  # noqa: E402
     protein_summary_html,
     remap_positions,
     remap_site_rows,
+    site_representation_name,
+    tm_site_positions,
     uniprot_range_for_chain,
 )
 from common.busy import (  # noqa: E402
@@ -68,6 +71,33 @@ B2B_METRIC_PLACEHOLDER = "Run Bio2Byte first"
 #: Worked example: RET, with PTMs, disease variants and many PDB entries.
 EXAMPLE_ACCESSION = "P07949"
 EXAMPLE_PDB_ID = "2IVT"
+
+#: The AlphaFold entry in the TM-align structure pickers -- same idiom as RIN
+#: Alignment, where the model sits in the dropdown next to the PDB entries.
+TM_ALPHAFOLD_KEY = "af"
+
+#: The TM-align site-overlay dropdowns, verbatim from the notebook's tab 6.
+TM_SITE_OVERLAY_CHOICES = {
+    "none": "No site overlay",
+    "ptm": "PTMs",
+    "mut": "Variants",
+    "overlap": "PTM + variant overlap",
+    "both": "All PTM/variant sites",
+}
+TM_SITE_STYLE_CHOICES = {
+    "stick": "Sticks/licorice",
+    "sphere": "Sphere",
+    "ballstick": "Ball+stick",
+}
+TM_SITE_TARGET_CHOICES = {
+    "both": "Both structures",
+    "s1": "Only Structure 1",
+    "s2": "Only Structure 2",
+}
+TM_VIEW_REGION_CHOICES = {
+    "all": "Show all (full structures)",
+    "aligned": "Aligned region only",
+}
 
 
 class StructureVizController:
@@ -116,10 +146,24 @@ class StructureVizController:
         self.tm_loaded_signature_1 = reactive.value(None)
         self.tm_loaded_signature_2 = reactive.value(None)
 
+        # The last alignment's artefacts, kept so a highlight-setting change redraws
+        # from the cached PDBs instead of re-running TM-align (the notebook's
+        # observe-and-redraw behaviour).
+        self.tm_last_superposed = reactive.value(None)
+        self.tm_last_reference = reactive.value(None)
+        self.tm_last_labels = reactive.value(("", ""))
+        # Overlap of the two aligned input ranges, in the shared UniProt numbering:
+        # what "Aligned region only" shows. None when the ranges do not overlap.
+        self.tm_aligned_range = reactive.value(None)
 
-def _tm_describe(pdb_id: str, chain: str, start, end) -> str:
-    """Name one side of the comparison the way the user chose it."""
-    bits = [pdb_id.strip().upper() or "uploaded file"]
+
+def _tm_describe(source: str, chain: str, start, end) -> str:
+    """Name one side of the comparison the way the user chose it.
+
+    ``source`` is already display-ready: an upper-case PDB ID, "AlphaFold <acc>", or
+    empty for an upload.
+    """
+    bits = [source.strip() or "uploaded file"]
     if chain:
         bits.append(f"chain {chain}")
     if start is not None and end is not None:
@@ -361,13 +405,13 @@ app_ui = scop3p_shell(
             scop3p_card(
                 "TM-align",
                 ui.layout_columns(
-                    ui.input_file("tm_pdb1", "PDB 1: upload local", accept=[".pdb"], multiple=False),
-                    scop3p_structure_picker("tm_pdb1_id", "PDB 1: or a PDB entry", {"": NO_PROTEIN_PLACEHOLDER}),
+                    ui.input_file("tm_pdb1", "Structure 1: upload local", accept=[".pdb"], multiple=False),
+                    scop3p_structure_picker("tm_pdb1_id", "Structure 1: or AlphaFold / a PDB entry", {"": NO_PROTEIN_PLACEHOLDER}),
                     col_widths=[6, 6],
                 ),
                 ui.layout_columns(
-                    ui.input_file("tm_pdb2", "PDB 2: upload local", accept=[".pdb"], multiple=False),
-                    scop3p_structure_picker("tm_pdb2_id", "PDB 2: or a PDB entry", {"": NO_PROTEIN_PLACEHOLDER}),
+                    ui.input_file("tm_pdb2", "Structure 2: upload local", accept=[".pdb"], multiple=False),
+                    scop3p_structure_picker("tm_pdb2_id", "Structure 2: or AlphaFold / a PDB entry", {"": NO_PROTEIN_PLACEHOLDER}),
                     col_widths=[6, 6],
                 ),
                 ui.layout_columns(
@@ -386,6 +430,39 @@ app_ui = scop3p_shell(
                     ui.input_numeric("tm_start2", "Start 2", value=None),
                     ui.input_numeric("tm_end2", "End 2", value=None),
                     col_widths=[2, 2, 2, 2, 2, 2],
+                ),
+                ui.layout_columns(
+                    ui.input_select(
+                        "tm_site_overlay",
+                        "Highlight sites",
+                        choices=TM_SITE_OVERLAY_CHOICES,
+                        selected="both",
+                    ),
+                    ui.input_select(
+                        "tm_site_style",
+                        "Site style",
+                        choices=TM_SITE_STYLE_CHOICES,
+                        selected="stick",
+                    ),
+                    ui.input_select(
+                        "tm_site_target",
+                        "Sites on",
+                        choices=TM_SITE_TARGET_CHOICES,
+                        selected="both",
+                    ),
+                    ui.input_radio_buttons(
+                        "tm_view_region",
+                        "Show region",
+                        choices=TM_VIEW_REGION_CHOICES,
+                        selected="all",
+                    ),
+                    col_widths=[3, 3, 3, 3],
+                ),
+                ui.p(
+                    "Site markers use the PTMs and variants fetched on tabs 1 and 2, in "
+                    "UniProt numbering. Changing a highlight setting redraws the last "
+                    "alignment without re-running TM-align.",
+                    class_="scop3p-note",
                 ),
                 ui.layout_columns(
                     task_button(
@@ -486,10 +563,19 @@ def server(input, output, session):
         else:
             trail.produced(f"{len(refs)} PDB entries cross-referenced from {accession}")
         entry_choices = pdb_entry_choices(refs, lookup_failed=lookup_failed)
-        for input_id in ("pdb_id", "rin_pdb_id", "tm_pdb1_id", "tm_pdb2_id"):
+        for input_id in ("pdb_id", "rin_pdb_id"):
             # update_selectize, not update_select: these are selectize widgets now, and
             # update_select would be accepted and then do nothing.
             ui.update_selectize(input_id, choices=entry_choices, selected="")
+        # The TM-align pickers also offer the AlphaFold model, right after the
+        # placeholder -- the same dropdown idiom RIN Alignment uses.
+        tm_choices: dict[str, str] = {}
+        for key, label in entry_choices.items():
+            tm_choices[key] = label
+            if key == "":
+                tm_choices[TM_ALPHAFOLD_KEY] = f"AlphaFold model ({accession})"
+        for input_id in ("tm_pdb1_id", "tm_pdb2_id"):
+            ui.update_selectize(input_id, choices=tm_choices, selected="")
 
         suffix = (
             f" | {len(refs)} PDB entr{'y' if len(refs) == 1 else 'ies'}"
@@ -1094,6 +1180,96 @@ def server(input, output, session):
             extra={"event": "build_rin"},
         )
 
+    def _tm_source_name(pdb_id: str) -> str:
+        """The display name for one TM-align side's dropdown choice."""
+        value = (pdb_id or "").strip()
+        if value == TM_ALPHAFOLD_KEY:
+            return f"AlphaFold {controller.accession.get()}".strip()
+        return value.upper()
+
+    def _clear_tm_result() -> None:
+        controller.tm_html.set("")
+        controller.tm_last_superposed.set(None)
+        controller.tm_last_reference.set(None)
+        controller.tm_last_labels.set(("", ""))
+        controller.tm_aligned_range.set(None)
+
+    def _render_tm_view() -> None:
+        """Draw (or redraw) the cached superposition with the current highlight settings.
+
+        Called after a run and whenever a highlight control changes: the PDBs are already
+        superposed, so a display setting costs a redraw, never a TM-align re-run.
+        """
+        superposed = controller.tm_last_superposed.get()
+        reference = controller.tm_last_reference.get()
+        if superposed is None or reference is None:
+            return
+        label_1, label_2 = controller.tm_last_labels.get()
+
+        mode = input.tm_site_overlay()
+        region = input.tm_view_region()
+        aligned_range = controller.tm_aligned_range.get()
+        region_sele = "protein"
+        if region == "aligned" and aligned_range is not None:
+            region_sele = f"{aligned_range[0]}-{aligned_range[1]}"
+
+        # Site positions are UniProt-numbered and applied to both structures as-is,
+        # as in the notebook: the tab assumes the two share UniProt numbering.
+        sites = tm_site_positions(controller.ptm_df.get(), controller.var_df.get(), mode)
+        if region == "aligned" and aligned_range is not None:
+            low, high = aligned_range
+            sites = [site for site in sites if low <= site <= high]
+        target = input.tm_site_target()
+
+        target_names = {"both": "both structures", "s1": label_1, "s2": label_2}
+        note_bits = [
+            f"Sites: {TM_SITE_OVERLAY_CHOICES.get(mode, mode)}",
+            f"on: {target_names.get(target, target)}",
+            f"style: {TM_SITE_STYLE_CHOICES.get(input.tm_site_style(), input.tm_site_style())}",
+            f"region: {TM_VIEW_REGION_CHOICES.get(region, region)}",
+        ]
+        if region == "aligned":
+            note_bits[-1] += (
+                f" ({aligned_range[0]}-{aligned_range[1]})"
+                if aligned_range is not None
+                else " (input ranges do not overlap; showing everything)"
+            )
+        if mode != "none" and not sites:
+            note_bits.append("no matching sites fetched yet (tabs 1-2)")
+
+        controller.tm_html.set(
+            StructureViewerBuilder.superposition_html(
+                superposed_text=Path(superposed).read_text(encoding="utf-8", errors="ignore"),
+                reference_text=Path(reference).read_text(encoding="utf-8", errors="ignore"),
+                label_superposed=f"{label_1} - superposed",
+                label_reference=f"{label_2} - reference",
+                region_sele=region_sele,
+                site_sele=ngl_selection_from_residues(sites),
+                site_rep=site_representation_name(input.tm_site_style()),
+                sites_on_superposed=target in ("both", "s1"),
+                sites_on_reference=target in ("both", "s2"),
+                settings_note=" | ".join(note_bits),
+            )
+        )
+
+    @reactive.effect
+    @reactive.event(
+        input.tm_site_overlay,
+        input.tm_site_style,
+        input.tm_site_target,
+        input.tm_view_region,
+        ignore_init=True,
+    )
+    def _tm_highlight_changed() -> None:
+        if controller.tm_last_superposed.get() is None:
+            return
+        trail.selected(
+            "TM-align highlight",
+            f"sites={input.tm_site_overlay()} on={input.tm_site_target()} "
+            f"style={input.tm_site_style()} region={input.tm_view_region()}",
+        )
+        _render_tm_view()
+
     @reactive.effect
     @reactive.event(input.run_tmalign)
     def _run_tmalign() -> None:
@@ -1107,7 +1283,7 @@ def server(input, output, session):
             if f1 is None or f2 is None:
                 trail.blocked("structures not loaded")
                 controller.tm_report.set("Load both structures first.")
-                controller.tm_html.set("")
+                _clear_tm_result()
                 return
             if (
                 current_signature_1 != controller.tm_loaded_signature_1.get()
@@ -1116,7 +1292,7 @@ def server(input, output, session):
                 controller.tm_structures_loaded.set(False)
                 trail.blocked("stale inputs")
                 controller.tm_report.set("TM-align inputs changed. Reload both structures first.")
-                controller.tm_html.set("")
+                _clear_tm_result()
                 return
 
             chain1 = input.tm_chain1() or "A"
@@ -1128,10 +1304,41 @@ def server(input, output, session):
 
             seg1 = StructureOps.save_chain_segment(f1, controller.workdir / "seg1.pdb", chain1, start1, end1)
             seg2 = StructureOps.save_chain_segment(f2, controller.workdir / "seg2.pdb", chain2, start2, end2)
-            alignment = StructureOps.run_tmalign(
-                seg1, seg2, controller.workdir, out_name="aligned"
-            )
+            # Matrix-based superposition, not the -o sup file: the aligned PDB keeps
+            # structure 1's own residue numbering, which the site overlay relies on.
+            alignment = StructureOps.run_tmalign_matrix(seg1, seg2, controller.workdir)
             aligned_path, report = alignment.superposed, alignment.report
+
+            # Aligned region = overlap of the two input ranges, both in the shared
+            # UniProt numbering (falling back to the loaded chain's own range when a
+            # bound was left empty).
+            fallback_1 = controller.tm_chain_ranges_1.get().get(chain1, (None, None))
+            fallback_2 = controller.tm_chain_ranges_2.get().get(chain2, (None, None))
+            s1 = start1 if start1 is not None else fallback_1[0]
+            e1 = end1 if end1 is not None else fallback_1[1]
+            s2 = start2 if start2 is not None else fallback_2[0]
+            e2 = end2 if end2 is not None else fallback_2[1]
+            aligned_range = None
+            if None not in (s1, e1, s2, e2):
+                low, high = max(int(s1), int(s2)), min(int(e1), int(e2))
+                aligned_range = (low, high) if low <= high else None
+            controller.tm_aligned_range.set(aligned_range)
+
+            label_1 = _tm_describe(_tm_source_name(input.tm_pdb1_id()), chain1, start1, end1)
+            label_2 = _tm_describe(_tm_source_name(input.tm_pdb2_id()), chain2, start2, end2)
+            controller.tm_last_superposed.set(aligned_path)
+            controller.tm_last_reference.set(alignment.reference)
+            controller.tm_last_labels.set((label_1, label_2))
+            # Say which structure "Only Structure N" means, as the notebook does.
+            ui.update_select(
+                "tm_site_target",
+                choices={
+                    "both": "Both structures",
+                    "s1": f"Only {label_1} (Structure 1)",
+                    "s2": f"Only {label_2} (Structure 2)",
+                },
+                selected=input.tm_site_target(),
+            )
 
             # The scores are the result. Previously only report.splitlines()[0] was shown,
             # which is TM-align's blank first line, so the user saw a temp-file path and
@@ -1142,33 +1349,13 @@ def server(input, output, session):
                 f"Aligned structure: {aligned_path.name}\n\n"
                 f"--- full TM-align output ---\n{report.strip()}"
             )
-            # Both structures, distinctly coloured. Rendering only the superposed one
-            # showed a single shape, which is not a superposition and cannot answer the
-            # question the protocol is for.
-            controller.tm_html.set(
-                StructureViewerBuilder.superposition_html(
-                    superposed_text=alignment.superposed.read_text(
-                        encoding="utf-8", errors="ignore"
-                    ),
-                    reference_text=alignment.reference.read_text(
-                        encoding="utf-8", errors="ignore"
-                    ),
-                    label_superposed=_tm_describe(
-                        input.tm_pdb1_id(), chain1, start1, end1
-                    )
-                    + " - superposed",
-                    label_reference=_tm_describe(
-                        input.tm_pdb2_id(), chain2, start2, end2
-                    )
-                    + " - reference",
-                )
-            )
+            _render_tm_view()
             controller.status.set("TM-align completed.")
             LOGGER.info("run_tmalign completed aligned=%s", aligned_path, extra={"event": "run_tmalign"})
         except Exception as error:
             LOGGER.exception("run_tmalign failed", extra={"event": "run_tmalign"})
             trail.failed("run_tmalign failed", error=type(error).__name__)
-            controller.tm_html.set("")
+            _clear_tm_result()
             controller.tm_report.set(f"TM-align error: {error}")
             controller.status.set("TM-align failed.")
 
@@ -1177,33 +1364,48 @@ def server(input, output, session):
     def _load_tmalign_structures() -> None:
         trail.clicked("Load TM-align structures")
         LOGGER.info("load_tmalign_structures requested", extra={"event": "load_tmalign_structures"})
-        controller.tm_html.set("")
+        _clear_tm_result()
         controller.tm_structures_loaded.set(False)
         try:
             tm_pdb1_id = input.tm_pdb1_id().strip()
             tm_pdb2_id = input.tm_pdb2_id().strip()
-            if tm_pdb1_id:
+            if tm_pdb1_id and tm_pdb1_id != TM_ALPHAFOLD_KEY:
                 StructureOps.validate_pdb_id(tm_pdb1_id)
-            if tm_pdb2_id:
+            if tm_pdb2_id and tm_pdb2_id != TM_ALPHAFOLD_KEY:
                 StructureOps.validate_pdb_id(tm_pdb2_id)
 
-            f1 = controller.service.resolve_uploaded_or_remote_pdb(
-                input.tm_pdb1(),
-                tm_pdb1_id,
-                target_name="tm_input_1.pdb",
-            )
-            f2 = controller.service.resolve_uploaded_or_remote_pdb(
-                input.tm_pdb2(),
-                tm_pdb2_id,
-                target_name="tm_input_2.pdb",
-            )
+            def _resolve_tm_side(upload, pdb_id: str, target_name: str) -> Path | None:  # noqa: ANN001
+                # An upload still wins, as everywhere else; the AlphaFold entry reuses
+                # the model tab 3 fetched, or downloads it once.
+                if not upload and pdb_id == TM_ALPHAFOLD_KEY:
+                    return _tm_alphafold_path()
+                return controller.service.resolve_uploaded_or_remote_pdb(
+                    upload, pdb_id, target_name=target_name
+                )
+
+            def _tm_alphafold_path() -> Path:
+                accession = controller.accession.get()
+                if not accession:
+                    raise ValueError(
+                        "Set a UniProtKB accession first to use the AlphaFold model."
+                    )
+                path = controller.af_path.get()
+                if path is None or not Path(path).exists():
+                    path = controller.service.download_alphafold_pdb(accession)
+                    controller.af_path.set(path)
+                return Path(path)
+
+            f1 = _resolve_tm_side(input.tm_pdb1(), tm_pdb1_id, "tm_input_1.pdb")
+            f2 = _resolve_tm_side(input.tm_pdb2(), tm_pdb2_id, "tm_input_2.pdb")
             if f1 is None or f2 is None:
                 trail.blocked("missing structure input")
                 controller.tm_input_1.set(None)
                 controller.tm_input_2.set(None)
                 controller.tm_chain_ranges_1.set({})
                 controller.tm_chain_ranges_2.set({})
-                controller.tm_report.set("Provide both structures via local upload or RCSB PDB ID.")
+                controller.tm_report.set(
+                    "Provide both structures via local upload, the AlphaFold model, or a PDB entry."
+                )
                 return
 
             ranges_1 = StructureOps.chain_ranges_from_pdb(f1)
@@ -1284,7 +1486,7 @@ def server(input, output, session):
         controller.tm_chain_ranges_2.set({})
         controller.tm_loaded_signature_1.set(None)
         controller.tm_loaded_signature_2.set(None)
-        controller.tm_html.set("")
+        _clear_tm_result()
         controller.tm_report.set("TM-align inputs changed. Reload both structures first.")
         LOGGER.info("tmalign inputs invalidated after source change", extra={"event": "load_tmalign_structures"})
 

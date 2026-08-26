@@ -13,6 +13,7 @@ from pathlib import Path
 import networkx as nx
 import re
 
+import numpy as np
 import pandas as pd
 import pyvis.network
 import requests
@@ -1539,6 +1540,75 @@ def parse_tmalign_report(report: str) -> TMAlignResult:
     return TMAlignResult(**values)  # type: ignore[arg-type]
 
 
+def ngl_selection_from_residues(residues, chain: str | None = None) -> str:
+    """An NGL residue selection: bare numbers and ranges, NOT the PyMOL ``resi`` keyword.
+
+    Consecutive runs collapse to ``a-b`` so a few hundred sites stay a short string. A
+    chain restriction is appended as ``:A`` when given.
+    """
+    values = sorted({int(value) for value in residues if value is not None})
+    if not values:
+        return ""
+    ranges: list[str] = []
+    run_start = previous = values[0]
+    for value in values[1:] + [None]:  # type: ignore[list-item]
+        if value is not None and value == previous + 1:
+            previous = value
+            continue
+        ranges.append(str(run_start) if run_start == previous else f"{run_start}-{previous}")
+        if value is not None:
+            run_start = previous = value
+    selection = " or ".join(ranges)
+    chain_id = (chain or "").strip().upper()[:1]
+    if chain_id:
+        selection = f"({selection}) and :{chain_id}"
+    return selection
+
+
+def site_representation_name(style: str) -> str:
+    """The notebook's style names mapped onto NGL representation names."""
+    value = (style or "stick").lower()
+    if value in {"sphere", "spheres"}:
+        return "spacefill"
+    if value in {"ballstick", "ball+stick", "ball-and-stick"}:
+        return "ball+stick"
+    return "licorice"
+
+
+def tm_site_positions(
+    ptm_df: pd.DataFrame | None, var_df: pd.DataFrame | None, mode: str
+) -> list[int]:
+    """UniProt positions for the TM-align site overlay, by the notebook's modes.
+
+    ``ptm`` / ``mut`` are one source, ``overlap`` their intersection, ``both`` their
+    union, ``none`` nothing. Positions are used as-is (no SIFTS remap): the tab assumes
+    both structures share UniProt numbering, as the notebook does.
+    """
+
+    def _positions(frame: pd.DataFrame | None) -> set[int]:
+        if frame is None or frame.empty or "position" not in frame.columns:
+            return set()
+        return {
+            int(value)
+            for value in pd.to_numeric(frame["position"], errors="coerce").dropna()
+        }
+
+    ptms = _positions(ptm_df)
+    variants = _positions(var_df)
+    value = (mode or "none").lower()
+    if value == "ptm":
+        selected = ptms
+    elif value in {"mut", "mutation", "variant"}:
+        selected = variants
+    elif value in {"overlap", "ptm+mutation", "ptm_variant"}:
+        selected = ptms & variants
+    elif value in {"none", ""}:
+        selected = set()
+    else:  # "both" and anything unrecognised: the permissive union, as in the notebook
+        selected = ptms | variants
+    return sorted(selected)
+
+
 class StructureOps:
     @staticmethod
     def validate_pdb_id(pdb_id: str) -> str:
@@ -1670,6 +1740,77 @@ class StructureOps:
         return TMAlignOutput(
             superposed=aligned_path, reference=pdb2, report=process.stdout
         )
+
+    @staticmethod
+    def run_tmalign_matrix(pdb1: Path, pdb2: Path, out_dir: Path, tag: str = "tm") -> TMAlignOutput:
+        """TM-align via its rotation matrix (``-m``) instead of the ``-o`` sup file.
+
+        The matrix is applied to structure 1's own coordinates here, so the superposed
+        file keeps structure 1's chain IDs and residue numbers. That is what lets
+        UniProt-numbered PTM/variant selections land on the right residues in the
+        viewer -- the ``-o`` output gives no such guarantee about either.
+        """
+        out_dir.mkdir(parents=True, exist_ok=True)
+        matrix_path = out_dir / f"tm_matrix_{tag}.txt"
+        cmd = [
+            "TM-align", str(pdb1.resolve()), str(pdb2.resolve()), "-m", str(matrix_path)
+        ]
+        try:
+            process = subprocess.run(cmd, cwd=out_dir, capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as error:
+            stderr = (error.stderr or "").strip()
+            stdout = (error.stdout or "").strip()
+            details = stderr or stdout or f"exit code {error.returncode}"
+            raise RuntimeError(
+                f"TM-align failed for {pdb1.name} vs {pdb2.name}: {details}"
+            ) from error
+        if not matrix_path.exists():
+            files = ", ".join(sorted(path.name for path in out_dir.iterdir()))
+            raise RuntimeError(f"TM-align wrote no rotation matrix in {out_dir}. Files: {files}")
+
+        aligned_path = out_dir / f"tm_aligned_{tag}.pdb"
+        StructureOps.transform_pdb_with_matrix(pdb1, aligned_path, matrix_path)
+        return TMAlignOutput(superposed=aligned_path, reference=pdb2, report=process.stdout)
+
+    @staticmethod
+    def read_tmalign_matrix(matrix_path: Path) -> tuple[np.ndarray, np.ndarray]:
+        """The (translation, rotation) TM-align writes with ``-m``: X_new = t + u @ X_old.
+
+        Rows are picked out by shape (an index plus four floats) rather than position,
+        and the index base is taken from the smallest index seen, because TM-align
+        builds have emitted both 0-based and 1-based row numbering.
+        """
+        rows: list[list[float]] = []
+        for line in Path(matrix_path).read_text(encoding="utf-8", errors="ignore").splitlines():
+            parts = line.split()
+            if len(parts) != 5:
+                continue
+            try:
+                rows.append([float(part) for part in parts])
+            except ValueError:
+                continue
+        if len(rows) < 3:
+            raise RuntimeError(f"Could not parse a 3x4 transform from {matrix_path}.")
+        base = min(int(round(row[0])) for row in rows[:3])
+        translation = np.zeros(3)
+        rotation = np.zeros((3, 3))
+        for row in rows[:3]:
+            index = int(round(row[0])) - base
+            translation[index] = row[1]
+            rotation[index, :] = row[2:5]
+        return translation, rotation
+
+    @staticmethod
+    def transform_pdb_with_matrix(in_pdb: Path, out_pdb: Path, matrix_path: Path) -> Path:
+        translation, rotation = StructureOps.read_tmalign_matrix(matrix_path)
+        parser = PDBParser(QUIET=True)
+        structure = parser.get_structure("aligned", str(in_pdb))
+        for atom in structure.get_atoms():
+            atom.set_coord(translation + rotation.dot(np.asarray(atom.coord, dtype=float)))
+        io = PDBIO()
+        io.set_structure(structure)
+        io.save(str(out_pdb))
+        return out_pdb
 
     @staticmethod
     def build_rin_graph(pdb_path: Path, chain: str = "A", cutoff: float = 8.0, atom_name: str = "CA") -> nx.Graph:
@@ -1925,6 +2066,13 @@ class StructureViewerBuilder:
         reference_text: str,
         label_superposed: str = "Structure 1 (superposed)",
         label_reference: str = "Structure 2 (reference)",
+        *,
+        region_sele: str = "protein",
+        site_sele: str = "",
+        site_rep: str = "licorice",
+        sites_on_superposed: bool = True,
+        sites_on_reference: bool = True,
+        settings_note: str = "",
     ) -> str:
         """Draw a TM-align superposition: two structures, one stage, two colours.
 
@@ -1936,19 +2084,41 @@ class StructureViewerBuilder:
         Both components share the stage's coordinate frame, which is exactly why the
         superposition is meaningful: TM-align has already rotated the first structure onto
         the second, so no alignment happens here.
+
+        Colour roles follow the notebook: red = structure 1 (superposed), blue =
+        structure 2 (reference), with the superposed one more opaque so the two stay
+        distinguishable where they overlap. ``region_sele`` limits both cartoons (e.g.
+        ``"705-1012"`` for the aligned region; ``"protein"`` shows everything), and
+        ``site_sele`` adds grey site markers in ``site_rep`` to whichever components
+        ``sites_on_*`` allow. Selections use bare residue numbers -- the tab assumes
+        both structures share UniProt numbering.
         """
-        superposed_colour = "#1f77b4"
-        reference_colour = "#d62728"
+        superposed_colour = "#d62728"
+        reference_colour = "#1f77b4"
+        site_colour = "#7a7a7a"
         uid = uuid.uuid4().hex
         panel_id = f"panel_{uid}"
         viewport_id = f"viewport_{uid}"
+        site_legend = (
+            f"<span style=\"display:inline-block;width:10px;height:10px;background:{site_colour};border-radius:2px;\"></span>\n"
+            "    selected sites<br/>"
+            if site_sele
+            else ""
+        )
+        note_line = (
+            f"<span style=\"color:#555;\">{html.escape(settings_note)}</span>"
+            if settings_note
+            else ""
+        )
         return f"""<div style=\"position:relative;width:100%;height:700px;\">
   <div id=\"{panel_id}\" style=\"position:absolute;top:10px;left:10px;z-index:10;background:rgba(255,255,255,.92);padding:8px 10px;border-radius:8px;font-size:12px;line-height:1.6;\">
     <b>TM-align superposition</b><br/>
     <span style=\"display:inline-block;width:10px;height:10px;background:{superposed_colour};border-radius:2px;\"></span>
     {html.escape(label_superposed)}<br/>
     <span style=\"display:inline-block;width:10px;height:10px;background:{reference_colour};border-radius:2px;\"></span>
-    {html.escape(label_reference)}
+    {html.escape(label_reference)}<br/>
+    {site_legend}
+    {note_line}
   </div>
   <div id=\"{viewport_id}\" style=\"width:100%;height:100%;\"></div>
 </div>
@@ -1956,20 +2126,29 @@ class StructureViewerBuilder:
 (() => {{
   const superposedText = {json.dumps(superposed_text)};
   const referenceText = {json.dumps(reference_text)};
+  const regionSele = {json.dumps(region_sele or "protein")};
+  const siteSele = {json.dumps(site_sele)};
+  const siteRep = {json.dumps(site_rep)};
   const stageEl = document.getElementById('{viewport_id}');
   if (!stageEl) return;
 
   const paint = () => {{
     const stage = new window.NGL.Stage(stageEl, {{ backgroundColor: 'white' }});
-    const load = (text, colour) => stage.loadFile(
+    const load = (text, colour, opacity, withSites) => stage.loadFile(
       new Blob([text], {{type: 'text/plain'}}), {{ext: 'pdb'}}
-    ).then(comp => {{ comp.addRepresentation('cartoon', {{color: colour}}); return comp; }});
+    ).then(comp => {{
+      comp.addRepresentation('cartoon', {{color: colour, sele: regionSele, opacity: opacity}});
+      if (siteSele && withSites) {{
+        comp.addRepresentation(siteRep, {{sele: siteSele, color: '{site_colour}'}});
+      }}
+      return comp;
+    }});
 
     // Both must finish before framing the view, or autoView runs on whichever loaded
     // first and the other sits outside the camera.
     Promise.all([
-      load(superposedText, '{superposed_colour}'),
-      load(referenceText, '{reference_colour}'),
+      load(superposedText, '{superposed_colour}', 0.85, {json.dumps(sites_on_superposed)}),
+      load(referenceText, '{reference_colour}', 0.6, {json.dumps(sites_on_reference)}),
     ]).then(() => stage.autoView());
 
     // These outputs render even while their tab is hidden

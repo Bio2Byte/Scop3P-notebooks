@@ -103,6 +103,93 @@ def test_run_tmalign_raises_runtime_error_with_subprocess_output(monkeypatch, tm
         StructureOps.run_tmalign(pdb1, pdb2, tmp_path, out_name="aligned")
 
 
+MATRIX_IDENTITY_SHIFT = """ ------ The rotation matrix to rotate Chain_1 to Chain_2 ------
+m               t[m]        u[m][0]        u[m][1]        u[m][2]
+0     1.0000000000   1.0000000000   0.0000000000   0.0000000000
+1     2.0000000000   0.0000000000   1.0000000000   0.0000000000
+2     3.0000000000   0.0000000000   0.0000000000   1.0000000000
+"""
+
+
+def test_read_tmalign_matrix_handles_zero_and_one_based_rows(tmp_path: Path) -> None:
+    zero_based = tmp_path / "m0.txt"
+    zero_based.write_text(MATRIX_IDENTITY_SHIFT)
+    one_based = tmp_path / "m1.txt"
+    one_based.write_text(
+        " ------ The rotation matrix to rotate Chain_1 to Chain_2 ------\n"
+        "m               t[m]        u[m][0]        u[m][1]        u[m][2]\n"
+        "1     1.0000000000   1.0000000000   0.0000000000   0.0000000000\n"
+        "2     2.0000000000   0.0000000000   1.0000000000   0.0000000000\n"
+        "3     3.0000000000   0.0000000000   0.0000000000   1.0000000000\n"
+    )
+
+    for matrix_path in (zero_based, one_based):
+        translation, rotation = StructureOps.read_tmalign_matrix(matrix_path)
+        assert translation.tolist() == [1.0, 2.0, 3.0]
+        assert rotation.tolist() == [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
+
+def test_transform_pdb_with_matrix_keeps_numbering_and_moves_coordinates(tmp_path: Path) -> None:
+    """The whole point of the -m route: residue numbers survive the superposition."""
+    source = tmp_path / "in.pdb"
+    source.write_text(PDB_MULTI_CHAIN)
+    matrix = tmp_path / "m.txt"
+    matrix.write_text(MATRIX_IDENTITY_SHIFT)
+
+    out = StructureOps.transform_pdb_with_matrix(source, tmp_path / "out.pdb", matrix)
+
+    assert StructureOps.chain_ranges_from_pdb(out) == {"A": (5, 10), "B": (200, 210)}
+    first_ca = next(
+        line for line in out.read_text().splitlines()
+        if line.startswith("ATOM") and line[12:16].strip() == "CA"
+    )
+    x, y, z = float(first_ca[30:38]), float(first_ca[38:46]), float(first_ca[46:54])
+    assert (x, y, z) == (pytest.approx(13.2), pytest.approx(14.3), pytest.approx(5.3))
+
+
+def test_run_tmalign_matrix_superposes_structure_one(monkeypatch, tmp_path: Path) -> None:
+    pdb1 = tmp_path / "a.pdb"
+    pdb2 = tmp_path / "b.pdb"
+    pdb1.write_text(PDB_MINI)
+    pdb2.write_text(PDB_MINI)
+
+    def _mock_run(cmd, cwd, capture_output, text, check):  # noqa: ANN001
+        assert "-m" in cmd
+        Path(cmd[cmd.index("-m") + 1]).write_text(MATRIX_IDENTITY_SHIFT)
+
+        class _Result:
+            stdout = "Aligned length= 2\n"
+
+        return _Result()
+
+    monkeypatch.setattr("common.structure_viz.subprocess.run", _mock_run)
+
+    output = StructureOps.run_tmalign_matrix(pdb1, pdb2, tmp_path)
+    assert output.reference == pdb2
+    assert output.report == "Aligned length= 2\n"
+    assert output.superposed.exists()
+    # Structure 1 moved by the matrix's translation; the reference is untouched.
+    assert StructureOps.chain_range_from_pdb(output.superposed, "A") == (1, 2)
+
+
+def test_run_tmalign_matrix_raises_when_no_matrix_is_written(monkeypatch, tmp_path: Path) -> None:
+    pdb1 = tmp_path / "a.pdb"
+    pdb2 = tmp_path / "b.pdb"
+    pdb1.write_text(PDB_MINI)
+    pdb2.write_text(PDB_MINI)
+
+    class _Result:
+        stdout = ""
+
+    monkeypatch.setattr(
+        "common.structure_viz.subprocess.run",
+        lambda cmd, cwd, capture_output, text, check: _Result(),
+    )
+
+    with pytest.raises(RuntimeError, match="no rotation matrix"):
+        StructureOps.run_tmalign_matrix(pdb1, pdb2, tmp_path)
+
+
 def test_resolve_uploaded_or_remote_pdb_prefers_upload(tmp_path: Path) -> None:
     service = StructureVizService(tmp_path)
     source = tmp_path / "upload_source.pdb"
