@@ -24,15 +24,15 @@ from topology_viewer.app import app as topology_viewer_app
 LOGGER = get_logger("scop3p.portal")
 # Dict order is navbar order. The key is the ?app= value and the cookie value.
 APP_OPTIONS = {
-    "peptide-mapper": ("Peptide Mapper", "fa-solid fa-map-pin", peptide_mapper_app),
     "structure-viz": ("Structure Visualisation", "fa-solid fa-cube", structure_viz_app),
-    "topology-viewer": ("Topology Viewer", "fa-solid fa-diagram-project", topology_viewer_app),
-    "mutation-effect": ("Mutation Effect", "fa-solid fa-bolt", mutation_effect_app),
     "rinalign": ("RIN Alignment", "fa-solid fa-circle-nodes", rinalign_app),
+    "mutation-effect": ("Mutation Effect", "fa-solid fa-bolt", mutation_effect_app),
+    "peptide-mapper": ("Peptide Mapper", "fa-solid fa-map-pin", peptide_mapper_app),
+    "topology-viewer": ("Topology Viewer", "fa-solid fa-diagram-project", topology_viewer_app),
     # Last on purpose: help sits at the end of the navbar, where help belongs.
     "help": ("Help?", "fa-solid fa-circle-question", help_app),
 }
-DEFAULT_APP_KEY = "peptide-mapper"
+DEFAULT_APP_KEY = "structure-viz"
 COOKIE_NAME = "scop3p_app"
 _LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "images" / "scop3p-nobg.png"
 

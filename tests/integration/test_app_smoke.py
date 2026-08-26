@@ -55,6 +55,25 @@ def test_help_documents_every_protocol_app() -> None:
     )
 
 
+def test_navbar_order() -> None:
+    """Dict order of APP_OPTIONS is navbar order; reviewers asked for this one."""
+    assert list(APP_OPTIONS) == [
+        "structure-viz",
+        "rinalign",
+        "mutation-effect",
+        "peptide-mapper",
+        "topology-viewer",
+        "help",
+    ]
+
+
+def test_help_cards_follow_navbar_order() -> None:
+    """Help cards read top-to-bottom in the same order as the navbar buttons."""
+    assert [protocol.key for protocol in PROTOCOLS] == [
+        key for key in APP_OPTIONS if key != "help"
+    ]
+
+
 def test_help_cards_are_substantive() -> None:
     """Guards against a protocol being added with placeholder text."""
     for protocol in PROTOCOLS:
@@ -81,13 +100,13 @@ def test_portal_root_selector_and_cookie() -> None:
     default_response = client.get("/")
     assert default_response.status_code == 200
     assert "Scop3P-Toolkit" in default_response.text
-    assert "Peptide Mapper" in default_response.text
-    assert "scop3p_app=peptide-mapper" in default_response.headers["set-cookie"]
+    assert "Structure Visualisation" in default_response.text
+    assert "scop3p_app=structure-viz" in default_response.headers["set-cookie"]
 
-    selected_response = client.get("/?app=structure-viz")
+    selected_response = client.get("/?app=peptide-mapper")
     assert selected_response.status_code == 200
-    assert "Structure Visualisation" in selected_response.text
-    assert "scop3p_app=structure-viz" in selected_response.headers["set-cookie"]
+    assert "Peptide Mapper" in selected_response.text
+    assert "scop3p_app=peptide-mapper" in selected_response.headers["set-cookie"]
 
     # Every registered app must appear in the injected navbar, whichever app is
     # being served. This is what catches an APP_OPTIONS entry that was forgotten.

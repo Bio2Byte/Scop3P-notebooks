@@ -44,22 +44,21 @@ the Makefile sets `DOCKER_DEFAULT_PLATFORM=linux/amd64` for you. On Apple Silico
 runs under emulation, so the first base build takes a few minutes and later ones are
 cached. App images build in about a second each once the base exists.
 
-### Why not just pull the published image?
+### Or pull the published image
 
-There is a published image, `bio2byte/scop3p-toolkit`, but check what you need from it
-first:
+The published image is `bio2byte/scop3p-toolkit`; `v0.4.0` is the first release with
+all five apps:
 
 ```bash
-docker run --rm -p 8000:8000 bio2byte/scop3p-toolkit:v0.2.5
+docker run --rm -p 8000:8000 bio2byte/scop3p-toolkit:v0.4.0
 ```
 
-- **Every published tag predates the Topology Viewer, RIN Alignment and the peptide
-  upload mode.** `v0.2.5` gives you three apps, not five. Build locally until a release
-  is tagged that includes them.
-- **Pin an explicit version.** The `latest` tag on Docker Hub is stale — it is older
-  than `v0.2.5`, because CI publishes `sha-<short>` and `v<tag>` but deliberately does
-  not move `latest`. `docker run bio2byte/scop3p-toolkit` therefore gets you an old
-  image, quietly.
+- **Pin an explicit version, `v0.4.0` or newer.** Older tags predate the Topology
+  Viewer, RIN Alignment and the peptide upload mode — `v0.2.5` gives you three apps,
+  not five.
+- **`latest` tracks releases from `v0.4.0` onward.** CI moves `latest` on every `v*`
+  tag it publishes. Pinning an explicit version is still the reproducible choice —
+  `latest` tells you nothing about which release you got.
 
 ### Jump straight to one app
 
@@ -67,11 +66,11 @@ The launcher accepts a preselect parameter, which is also what the navbar links 
 
 | App | URL |
 |---|---|
-| Peptide Mapper | <http://localhost:8000/?app=peptide-mapper> |
 | Structure Visualisation | <http://localhost:8000/?app=structure-viz> |
-| Topology Viewer | <http://localhost:8000/?app=topology-viewer> |
-| Mutation Effect | <http://localhost:8000/?app=mutation-effect> |
 | RIN Alignment | <http://localhost:8000/?app=rinalign> |
+| Mutation Effect | <http://localhost:8000/?app=mutation-effect> |
+| Peptide Mapper | <http://localhost:8000/?app=peptide-mapper> |
+| Topology Viewer | <http://localhost:8000/?app=topology-viewer> |
 | Help | <http://localhost:8000/?app=help> |
 
 Your choice is remembered in a cookie, so the next plain visit to `/` reopens it.
@@ -281,8 +280,9 @@ non-absolute root, so the tree page loads but every notebook you click returns H
 
 ## If something does not work
 
-**The navbar only shows three apps.** You are running a published image. Build locally
-(see the top of this document); no released tag includes the newer apps yet.
+**The navbar only shows three apps.** You are running an old published image. Pull
+`v0.4.0` or newer (see the top of this document); tags before it predate the Topology
+Viewer, RIN Alignment and the peptide upload mode.
 
 **`ModuleNotFoundError: No module named 'common'`.** Missing `PYTHONPATH=apps` on a local
 `shiny run`.

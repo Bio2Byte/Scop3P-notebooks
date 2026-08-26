@@ -249,16 +249,11 @@ class StructureVizService:
     def fetch_pdb_xrefs(self, accession: str) -> list[PdbXref]:
         """PDB entries cross-referenced from this accession's UniProt entry.
 
-        Uses a short connect timeout rather than the service default. This call sits on
-        the critical path of "Set protein", and a synchronous effect blocks the ASGI
-        loop for every connected session while it waits -- a slow UniProt froze the app
-        for the full 60 seconds before this was bounded.
+        Parsed from the shared raw-entry fetch, so "Set protein" costs one UniProt
+        round trip even though both the xrefs and the protein summary card read from
+        the same entry.
         """
-        payload = self._lookup_json(
-            f"https://rest.uniprot.org/uniprotkb/{accession}.json",
-            headers={"Accept": "application/json"},
-        )
-        return parse_pdb_xrefs(payload)
+        return parse_pdb_xrefs(fetch_uniprot_entry_json(accession))
 
     @memoize(name="uniprot.disease.variants")
     def fetch_variants(self, accession: str) -> pd.DataFrame:
@@ -774,6 +769,136 @@ def parse_pdb_xrefs(payload: dict) -> list[PdbXref]:
         )
     refs.sort(key=lambda ref: ref.pdb_id)
     return refs
+
+
+# Not "uniprot.entry.info": rinalign caches a differently shaped dict under that name,
+# and memoize shares caches by name, so reusing it would hand one app the other's shape.
+@memoize(name="uniprot.entry.json")
+def fetch_uniprot_entry_json(accession: str) -> dict:
+    """The raw UniProtKB entry JSON, fetched once per accession process-wide.
+
+    This call sits on the critical path of "Set protein", and a synchronous effect
+    blocks the ASGI loop for every connected session while it waits -- a slow UniProt
+    froze the app for the full 60 seconds before the lookup policy bounded it.
+    """
+    return http_lookup_json(
+        f"https://rest.uniprot.org/uniprotkb/{accession}.json",
+        logger=LOGGER,
+        headers={"Accept": "application/json"},
+    )
+
+
+def _entry_comment_text(comment: dict) -> str:
+    texts = [
+        text.get("value")
+        for text in comment.get("texts", []) or []
+        if text.get("value")
+    ]
+    return " ".join(texts).strip()
+
+
+def _entry_recommended_name(payload: dict) -> str:
+    description = payload.get("proteinDescription") or {}
+    full = (description.get("recommendedName") or {}).get("fullName") or {}
+    if full.get("value"):
+        return full["value"]
+    submissions = description.get("submissionNames") or []
+    if submissions:
+        full = (submissions[0] or {}).get("fullName") or {}
+        if full.get("value"):
+            return full["value"]
+    return payload.get("uniProtkbId") or payload.get("primaryAccession") or ""
+
+
+def _entry_gene_names(payload: dict) -> str:
+    genes = [
+        (gene.get("geneName") or {}).get("value")
+        for gene in payload.get("genes", []) or []
+    ]
+    return ", ".join(dict.fromkeys(gene for gene in genes if gene))
+
+
+def _entry_subcellular_locations(payload: dict) -> str:
+    values: list[str] = []
+    for comment in payload.get("comments", []) or []:
+        if comment.get("commentType") != "SUBCELLULAR LOCATION":
+            continue
+        for entry in comment.get("subcellularLocations", []) or []:
+            parts = [
+                ((entry.get(field) or {}).get("value") or "").strip()
+                for field in ("location", "topology", "orientation")
+            ]
+            parts = [part for part in parts if part]
+            if parts:
+                values.append("; ".join(parts))
+        text = _entry_comment_text(comment)
+        if text:
+            values.append(text)
+    return "; ".join(dict.fromkeys(values))
+
+
+def _entry_function(payload: dict, max_chars: int = 260) -> str:
+    for comment in payload.get("comments", []) or []:
+        if comment.get("commentType") == "FUNCTION":
+            text = _entry_comment_text(comment)
+            if text:
+                return text[:max_chars].rstrip() + ("..." if len(text) > max_chars else "")
+    return ""
+
+
+def parse_protein_summary(payload: dict) -> dict:
+    """Compact protein metadata for the header card, from an already-fetched entry.
+
+    The field set is the notebook's ``fetch_uniprot_protein_info``, kept apart from the
+    HTTP fetch so it can parse the same cached payload the PDB xref lookup used.
+    """
+    sequence = payload.get("sequence") or {}
+    keywords = [
+        keyword.get("name")
+        for keyword in payload.get("keywords", []) or []
+        if keyword.get("name")
+    ]
+    entry_type = str(payload.get("entryType", "")).lower()
+    return {
+        "accession": payload.get("primaryAccession") or "",
+        "entry_name": payload.get("uniProtkbId") or "",
+        "protein_name": _entry_recommended_name(payload),
+        "gene": _entry_gene_names(payload),
+        "organism": (payload.get("organism") or {}).get("scientificName") or "",
+        "length": sequence.get("length") or len(sequence.get("value", "") or ""),
+        # UniProt REST answers "UniProtKB reviewed (Swiss-Prot)" or
+        # "UniProtKB unreviewed (TrEMBL)" -- "unreviewed" contains "reviewed".
+        "reviewed": "reviewed" in entry_type and "unreviewed" not in entry_type,
+        "subcellular_location": _entry_subcellular_locations(payload),
+        "function": _entry_function(payload),
+        "keywords": ", ".join(keywords[:8]),
+    }
+
+
+def protein_summary_html(info: dict) -> str:
+    """The protein summary card body, in the toolkit's banner + note idiom."""
+    escape = html.escape
+    reviewed = "reviewed" if info.get("reviewed") else "unreviewed"
+    banner = (
+        "<div class='summary-banner'>"
+        f"<b>{escape(str(info.get('protein_name') or info.get('accession') or ''))}</b><br>"
+        f"Gene: <b>{escape(str(info.get('gene') or '-'))}</b> | "
+        f"Length: <b>{escape(str(info.get('length') or '-'))}</b> aa ({reviewed}) | "
+        f"<i>{escape(str(info.get('organism') or '-'))}</i> | "
+        f"<code>{escape(str(info.get('accession') or '-'))}</code> "
+        f"{escape(str(info.get('entry_name') or ''))}"
+        "</div>"
+    )
+    notes = [
+        f"<div class='scop3p-note'><b>{label}:</b> {escape(str(value))}</div>"
+        for label, value in (
+            ("Function", info.get("function")),
+            ("Keywords", info.get("keywords")),
+            ("Subcellular location", info.get("subcellular_location")),
+        )
+        if value
+    ]
+    return banner + "".join(notes)
 
 
 def pdb_entry_choices(

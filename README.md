@@ -70,9 +70,9 @@ The GitHub Actions workflow lives in [`docker-publish.yml`](.github/workflows/do
      - builds the same image target
      - logs in to Docker Hub
      - publishes these tags:
-       - `latest`
        - `sha-<short-commit>`
-       - `<git-tag>` such as `v1.2.3`
+       - `<git-tag>` such as `v0.4.0`
+       - `latest`, which tracks the most recent release tag (from `v0.4.0` onward)
 
 The workflow resolves the Docker repository namespace in this order:
 

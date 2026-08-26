@@ -48,37 +48,6 @@ class Protocol:
 
 PROTOCOLS: tuple[Protocol, ...] = (
     Protocol(
-        key="peptide-mapper",
-        name="Peptide Mapper",
-        question="Where do my phospho-peptides sit on the structure?",
-        mission=(
-            "Turn a list of phospho-peptides into a picture: which parts of the folded "
-            "protein your mass-spectrometry evidence actually covers, and where the "
-            "modified residues fall within that coverage."
-        ),
-        scope=(
-            "Peptides come either from Scop3P for a given accession, or from your own "
-            "search-engine export (TSV/CSV) via the Upload tab.",
-            "Structures are AlphaFold models only; there is no experimental-PDB path "
-            "here. Use Structure Visualisation for that.",
-            "Colour grammar: grey is the whole protein, blue is the union of the "
-            "peptides you selected, red is their intersection, magenta marks "
-            "modified sites.",
-        ),
-        use_cases=(
-            "Check whether a phosphosite of interest is inside observed peptide coverage "
-            "at all, or is only inferred.",
-            "See whether several peptides agree on the same region, by looking at the red "
-            "intersection.",
-            "Bring an in-house search result and inspect coverage per protein without "
-            "writing any mapping code.",
-            "Export a self-contained HTML session, the PDB, or a TSV of mapped residues "
-            "to share with a collaborator.",
-        ),
-        inputs="A UniProtKB accession, or a peptide table with protein, sequence, start, end and position columns.",
-        spec="docs/use-cases/peptide_mapper.md",
-    ),
-    Protocol(
         key="structure-viz",
         name="Structure Visualisation",
         question="What is happening around this residue, structurally and biophysically?",
@@ -108,69 +77,6 @@ PROTOCOLS: tuple[Protocol, ...] = (
         ),
         inputs="A UniProtKB accession; optionally PDB IDs or uploaded coordinate files.",
         spec="docs/use-cases/structure_viz.md",
-    ),
-    Protocol(
-        key="topology-viewer",
-        name="Topology Viewer",
-        question="What is the fold's wiring, and where do my sites land on it?",
-        mission=(
-            "Flatten a three-dimensional fold into a topology diagram -- helices, "
-            "strands, sheets and the loops connecting them -- so the architecture is "
-            "readable at a glance, with the 3D structure beside it for reference."
-        ),
-        scope=(
-            "Two strictly separate modes. Accession mode fetches an AlphaFold model or a "
-            "PDBe entry and can overlay annotations. File mode takes your uploaded "
-            "structure, makes no network requests, and deliberately offers no overlay: a "
-            "local prediction has no reliable UniProt numbering.",
-            "Secondary structure is read from the file when present and derived from "
-            "coordinates when it is not. The provenance is always displayed, because "
-            "different methods disagree about element boundaries by a residue or two.",
-            "Annotations are positioned through the SIFTS numbering map. If no map is "
-            "available the sites are hidden rather than drawn at the wrong residues.",
-        ),
-        use_cases=(
-            "Understand the domain architecture of an unfamiliar protein faster than by "
-            "rotating a 3D model.",
-            "Check whether phosphosites fall on structured elements or in the loops "
-            "between them.",
-            "Inspect the topology of a locally predicted structure (ColabFold, Boltz, "
-            "Chai) fully offline.",
-            "Compare which secondary-structure assignment method your structure supports, "
-            "using the provenance line.",
-        ),
-        inputs="A UniProtKB accession, or an uploaded .pdb / .cif / .ent / .mmcif file.",
-        spec="docs/use-cases/topology_viewer.md",
-    ),
-    Protocol(
-        key="mutation-effect",
-        name="Mutation Effect",
-        question="What does this mutation do to the protein's biophysical behaviour?",
-        mission=(
-            "Predict biophysical properties for a wild-type sequence and for a mutated "
-            "version of it, then report where the two disagree -- so a substitution can "
-            "be read as a change in behaviour rather than just a change in letter."
-        ),
-        scope=(
-            "Bio2Byte predictors: DynaMine backbone dynamics, DisoMine disorder and "
-            "EFoldMine early folding.",
-            "Sequence-based only. Nothing here uses a structure, which is what lets it "
-            "work on any protein regardless of structural coverage.",
-            "The inference step converts continuous predictions into categorical labels "
-            "and reports shifts at the mutated position and within a five-residue window.",
-            "Scop3P PTMs are kept on the plots throughout, so a shift can be read "
-            "relative to known modification sites.",
-        ),
-        use_cases=(
-            "Ask whether a disease mutation is predicted to rigidify or loosen its "
-            "surroundings.",
-            "Check whether a substitution is predicted to push a region across the "
-            "order/disorder boundary.",
-            "Compare several candidate mutations at the same position in one session.",
-            "See whether a predicted change lands on or near a known phosphosite.",
-        ),
-        inputs="A UniProtKB accession, plus one or more 1-indexed positions and target amino acids.",
-        spec="docs/use-cases/mutation_effect.md",
     ),
     Protocol(
         key="rinalign",
@@ -206,6 +112,100 @@ PROTOCOLS: tuple[Protocol, ...] = (
         ),
         inputs="A UniProtKB accession, then two structures chosen from its AlphaFold model and PDB entries.",
         spec="docs/use-cases/rinalign.md",
+    ),
+    Protocol(
+        key="mutation-effect",
+        name="Mutation Effect",
+        question="What does this mutation do to the protein's biophysical behaviour?",
+        mission=(
+            "Predict biophysical properties for a wild-type sequence and for a mutated "
+            "version of it, then report where the two disagree -- so a substitution can "
+            "be read as a change in behaviour rather than just a change in letter."
+        ),
+        scope=(
+            "Bio2Byte predictors: DynaMine backbone dynamics, DisoMine disorder and "
+            "EFoldMine early folding.",
+            "Sequence-based only. Nothing here uses a structure, which is what lets it "
+            "work on any protein regardless of structural coverage.",
+            "The inference step converts continuous predictions into categorical labels "
+            "and reports shifts at the mutated position and within a five-residue window.",
+            "Scop3P PTMs are kept on the plots throughout, so a shift can be read "
+            "relative to known modification sites.",
+        ),
+        use_cases=(
+            "Ask whether a disease mutation is predicted to rigidify or loosen its "
+            "surroundings.",
+            "Check whether a substitution is predicted to push a region across the "
+            "order/disorder boundary.",
+            "Compare several candidate mutations at the same position in one session.",
+            "See whether a predicted change lands on or near a known phosphosite.",
+        ),
+        inputs="A UniProtKB accession, plus one or more 1-indexed positions and target amino acids.",
+        spec="docs/use-cases/mutation_effect.md",
+    ),
+    Protocol(
+        key="peptide-mapper",
+        name="Peptide Mapper",
+        question="Where do my phospho-peptides sit on the structure?",
+        mission=(
+            "Turn a list of phospho-peptides into a picture: which parts of the folded "
+            "protein your mass-spectrometry evidence actually covers, and where the "
+            "modified residues fall within that coverage."
+        ),
+        scope=(
+            "Peptides come either from Scop3P for a given accession, or from your own "
+            "search-engine export (TSV/CSV) via the Upload tab.",
+            "Structures are AlphaFold models only; there is no experimental-PDB path "
+            "here. Use Structure Visualisation for that.",
+            "Colour grammar: grey is the whole protein, blue is the union of the "
+            "peptides you selected, red is their intersection, magenta marks "
+            "modified sites.",
+        ),
+        use_cases=(
+            "Check whether a phosphosite of interest is inside observed peptide coverage "
+            "at all, or is only inferred.",
+            "See whether several peptides agree on the same region, by looking at the red "
+            "intersection.",
+            "Bring an in-house search result and inspect coverage per protein without "
+            "writing any mapping code.",
+            "Export a self-contained HTML session, the PDB, or a TSV of mapped residues "
+            "to share with a collaborator.",
+        ),
+        inputs="A UniProtKB accession, or a peptide table with protein, sequence, start, end and position columns.",
+        spec="docs/use-cases/peptide_mapper.md",
+    ),
+    Protocol(
+        key="topology-viewer",
+        name="Topology Viewer",
+        question="What is the fold's wiring, and where do my sites land on it?",
+        mission=(
+            "Flatten a three-dimensional fold into a topology diagram -- helices, "
+            "strands, sheets and the loops connecting them -- so the architecture is "
+            "readable at a glance, with the 3D structure beside it for reference."
+        ),
+        scope=(
+            "Two strictly separate modes. Accession mode fetches an AlphaFold model or a "
+            "PDBe entry and can overlay annotations. File mode takes your uploaded "
+            "structure, makes no network requests, and deliberately offers no overlay: a "
+            "local prediction has no reliable UniProt numbering.",
+            "Secondary structure is read from the file when present and derived from "
+            "coordinates when it is not. The provenance is always displayed, because "
+            "different methods disagree about element boundaries by a residue or two.",
+            "Annotations are positioned through the SIFTS numbering map. If no map is "
+            "available the sites are hidden rather than drawn at the wrong residues.",
+        ),
+        use_cases=(
+            "Understand the domain architecture of an unfamiliar protein faster than by "
+            "rotating a 3D model.",
+            "Check whether phosphosites fall on structured elements or in the loops "
+            "between them.",
+            "Inspect the topology of a locally predicted structure (ColabFold, Boltz, "
+            "Chai) fully offline.",
+            "Compare which secondary-structure assignment method your structure supports, "
+            "using the provenance line.",
+        ),
+        inputs="A UniProtKB accession, or an uploaded .pdb / .cif / .ent / .mmcif file.",
+        spec="docs/use-cases/topology_viewer.md",
     ),
 )
 

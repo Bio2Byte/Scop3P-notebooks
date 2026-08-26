@@ -40,6 +40,7 @@ from common.rinalign import (  # noqa: E402
     diff_rins,
     rin_html,
 )
+from common.services import Scop3PApiError  # noqa: E402
 from common.ui_shell import (  # noqa: E402
     ACCESSION_LABEL,
     scop3p_card,
@@ -67,6 +68,38 @@ DIFF_VIEW_CHOICES = {
     "linked": "Linked 3D",
 }
 ALIGN_VIEW_CHOICES = {"mapping": "Node mapping"}
+
+
+def _ptm_summary(
+    scop3p: set[int] | None, uniprot: set[int] | None
+) -> tuple[frozenset[int], str, list[str]]:
+    """Combine the two PTM sources into positions, a status line and detail lines.
+
+    ``scop3p=None`` means the Scop3P lookup failed -- distinct from ``set()``, which is
+    Scop3P's honest answer for a protein it does not cover. ``uniprot=None`` means the
+    UniProt source was toggled off. A Scop3P failure therefore degrades to whatever
+    UniProt returned instead of aborting the fetch.
+    """
+    combined = frozenset(scop3p or set()) | frozenset(uniprot or set())
+
+    if scop3p is None:
+        scop3p_part = "Scop3P: unavailable (service error)"
+    elif not scop3p:
+        scop3p_part = "Scop3P: 0 (protein not in Scop3P - mainly human phosphoproteins)"
+    else:
+        scop3p_part = f"Scop3P: {len(scop3p)}"
+    uniprot_part = "UniProt: off" if uniprot is None else f"UniProt: {len(uniprot)}"
+    status_line = f"{scop3p_part} | {uniprot_part} | total unique: {len(combined)}"
+
+    lines = [f"PTMs - {status_line}"]
+    if scop3p is None:
+        lines.append(
+            "Scop3P could not be reached; the positions below are UniProt only. "
+            "Press Fetch PTMs again to retry Scop3P."
+        )
+    if combined:
+        lines.append("Re-run Compare to overlay PTM rings on the network.")
+    return combined, status_line, lines
 
 
 def _view_iframe(html_document: str, height_px: int) -> ui.Tag:
@@ -205,12 +238,10 @@ app_ui = scop3p_shell(
             ui.h5("2. Annotation sources", class_="ra-step"),
             ui.input_checkbox("include_uniprot_ptms", "Include UniProt PTMs", value=True),
             ui.div(
-                ui.input_action_button(
-                    "fetch_ptm", "Fetch PTMs (Scop3P)", class_="btn btn-warning"
-                ),
-                ui.input_action_button(
-                    "fetch_variants", "Fetch disease variants", class_="btn btn-info"
-                ),
+                task_button(
+                        "fetch_ptm", "Fetch PTMs (Scop3P)", class_="btn btn-warning"),
+                task_button(
+                        "fetch_variants", "Fetch disease variants", class_="btn btn-info"),
                 class_="ra-button-row",
             ),
             ui.p(
@@ -576,23 +607,28 @@ def server(input, output, session):
             return
         try:
             ptmvar_text.set("Fetching PTMs...")
-            scop3p = service.fetch_scop3p_ptm_positions(value)
-            uniprot: set[int] = set()
+            scop3p: set[int] | None
+            try:
+                scop3p = service.fetch_scop3p_ptm_positions(value)
+            except Scop3PApiError as error:
+                # Degrade, do not abort: UniProt PTMs are still worth fetching when
+                # Scop3P is down, and the summary says which source went missing.
+                LOGGER.warning(
+                    "fetch_ptm scop3p unavailable accession=%s error=%s",
+                    value, error, extra={"event": "fetch_ptm"},
+                )
+                trail.blocked(f"Scop3P PTMs unavailable: {error}")
+                scop3p = None
+            uniprot: set[int] | None = None
             if input.include_uniprot_ptms():
                 uniprot = service.fetch_uniprot_ptm_positions(value)
-            combined = set(scop3p) | uniprot
-            ptm_positions.set(frozenset(combined))
 
-            lines = [
-                f"PTMs - Scop3P: {len(scop3p)} | UniProt: {len(uniprot)} | "
-                f"total unique: {len(combined)}"
-            ]
-            if not combined:
-                lines.append(
-                    "No PTMs found. Scop3P mainly covers human phosphoproteins."
-                )
-            lines.append("Re-run Compare to overlay PTM rings on the network.")
+            combined, status_line, lines = _ptm_summary(scop3p, uniprot)
+            ptm_positions.set(combined)
             ptmvar_text.set("\n".join(lines))
+            # The per-source summary also belongs in the Session Status card on top,
+            # where the record of the session is read.
+            say(f"PTMs - {status_line}")
         except Exception as error:  # noqa: BLE001
             LOGGER.exception("fetch_ptm failed", extra={"event": "fetch_ptm"})
             trail.failed("fetch_ptm failed", error=type(error).__name__)
@@ -601,8 +637,8 @@ def server(input, output, session):
         LOGGER.info(
             "fetch_ptm completed accession=%s scop3p=%s uniprot=%s",
             value,
-            len(scop3p),
-            len(uniprot),
+            "unavailable" if scop3p is None else len(scop3p),
+            "off" if uniprot is None else len(uniprot),
             extra={"event": "fetch_ptm"},
         )
 

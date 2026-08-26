@@ -19,10 +19,13 @@ from common.structure_viz import (
     b2b_value_range,
     build_ptm_table,
     chain_choices_for_pdb,
+    fetch_uniprot_entry_json,
     merge_ptm_tables,
     numeric_b2b_columns,
     parse_pdb_xrefs,
+    parse_protein_summary,
     pdb_entry_choices,
+    protein_summary_html,
     pseudocolor,
     residue_three_letter,
     uniprot_range_for_chain,
@@ -449,6 +452,112 @@ def test_fetch_pdb_xrefs_uses_a_bounded_connect_timeout(monkeypatch, tmp_path: P
     # Both bounds must stay well under the service default, which is sized for file
     # downloads. A lookup inherits that only by mistake.
     assert connect < read < service.timeout
+
+
+# --------------------------------------------------------------------------------------
+# The protein summary card, parsed from the same UniProt entry as the PDB xrefs
+# --------------------------------------------------------------------------------------
+
+
+def _entry_payload(**overrides) -> dict:  # noqa: ANN003
+    payload = {
+        "primaryAccession": "P07949",
+        "uniProtkbId": "RET_HUMAN",
+        "entryType": "UniProtKB reviewed (Swiss-Prot)",
+        "proteinDescription": {
+            "recommendedName": {"fullName": {"value": "Proto-oncogene tyrosine-protein kinase receptor Ret"}}
+        },
+        "genes": [{"geneName": {"value": "RET"}}],
+        "organism": {"scientificName": "Homo sapiens"},
+        "sequence": {"length": 1114},
+        "keywords": [{"name": f"kw{i}"} for i in range(10)],
+        "comments": [
+            {
+                "commentType": "FUNCTION",
+                "texts": [{"value": "Receptor tyrosine kinase involved in numerous cellular mechanisms."}],
+            },
+            {
+                "commentType": "SUBCELLULAR LOCATION",
+                "subcellularLocations": [
+                    {"location": {"value": "Cell membrane"}, "topology": {"value": "Single-pass type I membrane protein"}}
+                ],
+            },
+        ],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_parse_protein_summary_reads_the_notebook_field_set() -> None:
+    info = parse_protein_summary(_entry_payload())
+    assert info["accession"] == "P07949"
+    assert info["entry_name"] == "RET_HUMAN"
+    assert info["protein_name"].startswith("Proto-oncogene")
+    assert info["gene"] == "RET"
+    assert info["organism"] == "Homo sapiens"
+    assert info["length"] == 1114
+    assert info["reviewed"] is True
+    assert info["function"].startswith("Receptor tyrosine kinase")
+    assert "Cell membrane; Single-pass type I membrane protein" in info["subcellular_location"]
+
+
+def test_parse_protein_summary_reviewed_excludes_unreviewed() -> None:
+    # "unreviewed" contains "reviewed", so a naive substring check would call
+    # every TrEMBL entry reviewed.
+    unreviewed = parse_protein_summary(
+        _entry_payload(entryType="UniProtKB unreviewed (TrEMBL)")
+    )
+    assert unreviewed["reviewed"] is False
+
+
+def test_parse_protein_summary_caps_keywords_at_eight() -> None:
+    info = parse_protein_summary(_entry_payload())
+    assert info["keywords"].split(", ") == [f"kw{i}" for i in range(8)]
+
+
+def test_parse_protein_summary_of_a_sparse_entry_degrades_quietly() -> None:
+    info = parse_protein_summary({"primaryAccession": "A0A000"})
+    assert info["accession"] == "A0A000"
+    assert info["gene"] == ""
+    assert info["function"] == ""
+    assert info["subcellular_location"] == ""
+    assert info["length"] == 0
+    assert info["reviewed"] is False
+
+
+def test_protein_summary_html_escapes_and_names_the_fields() -> None:
+    info = parse_protein_summary(
+        _entry_payload(
+            proteinDescription={
+                "recommendedName": {"fullName": {"value": "Kinase <script>alert(1)</script>"}}
+            }
+        )
+    )
+    rendered = protein_summary_html(info)
+    assert "<script>" not in rendered
+    assert "&lt;script&gt;" in rendered
+    for expected in ("RET", "1114", "Homo sapiens", "Receptor tyrosine kinase"):
+        assert expected in rendered
+
+
+def test_set_protein_costs_one_uniprot_request(monkeypatch, tmp_path: Path) -> None:
+    """The xrefs and the summary card must parse from one shared raw fetch."""
+    calls: list[str] = []
+
+    def fake_get(url, headers=None, timeout=None):  # noqa: ANN001, ARG001
+        calls.append(url)
+        return _JsonResponse(
+            _entry_payload(uniProtKBCrossReferences=[_xref("2IVS", "A=705-1013")])
+        )
+
+    monkeypatch.setattr("common.http_lookup.requests.get", fake_get)
+    service = StructureVizService(tmp_path)
+    refs = service.fetch_pdb_xrefs("P07949")
+    info = parse_protein_summary(fetch_uniprot_entry_json("P07949"))
+
+    assert [ref.pdb_id for ref in refs] == ["2IVS"]
+    assert info["gene"] == "RET"
+    assert len(calls) == 1
 
 
 # --------------------------------------------------------------------------------------

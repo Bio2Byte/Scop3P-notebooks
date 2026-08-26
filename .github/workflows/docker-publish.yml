@@ -99,6 +99,7 @@ jobs:
           tags: |
             type=sha,format=short,prefix=sha-
             type=ref,event=tag
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
           labels: |
             org.opencontainers.image.title=Scop3P-Toolkit
             org.opencontainers.image.description=Scop3P toolkit container for Galaxy interactive tool deployment

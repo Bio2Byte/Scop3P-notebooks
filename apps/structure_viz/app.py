@@ -21,10 +21,13 @@ from common.structure_viz import (  # noqa: E402
     b2b_legend_html,
     b2b_value_range,
     chain_choices_for_pdb,
+    fetch_uniprot_entry_json,
     identity_mapping,
     numeric_b2b_columns,
+    parse_protein_summary,
     parse_tmalign_report,
     pdb_entry_choices,
+    protein_summary_html,
     remap_positions,
     remap_site_rows,
     uniprot_range_for_chain,
@@ -74,6 +77,10 @@ class StructureVizController:
 
         self.accession = reactive.value("")
         self.status = reactive.value("Set a UniProtKB accession to start.")
+
+        # The header card's protein summary (name, gene, length, function ...), as
+        # rendered HTML. Empty until an accession is set.
+        self.protein_summary = reactive.value("")
 
         # PDB entries cross-referenced from the accession, and the per-chain UniProt
         # ranges that come with them. Populated when the protein is set, so every PDB
@@ -198,6 +205,14 @@ app_ui = scop3p_shell(
   gap: 8px;
   margin-bottom: 12px;
 }
+/* Three header cards here, not the shared two-column default. Scoped to wide
+   screens because this style tag comes after the shell's stylesheet, and an
+   unqualified rule would override the shared <=1000px one-column collapse. */
+@media (min-width: 1001px) {
+  .scop3p-header-grid {
+    grid-template-columns: 1.2fr 0.8fr 1.2fr;
+  }
+}
 """
     ),
     ui.div(
@@ -220,6 +235,7 @@ app_ui = scop3p_shell(
             ui.output_text_verbatim("status"),
             extra_class="scop3p-status",
         ),
+        scop3p_card("Protein", ui.output_ui("protein_summary")),
         class_="scop3p-header-grid",
     ),
     ui.navset_tab(
@@ -434,6 +450,21 @@ def server(input, output, session):
         controller.accession.set(accession)
         _reset_b2b_state(controller)
 
+        # The header's protein summary, parsed from the same cached UniProt entry the
+        # PDB xref lookup below uses. Non-fatal: the rest of the app works without it.
+        try:
+            info = parse_protein_summary(fetch_uniprot_entry_json(accession))
+            controller.protein_summary.set(protein_summary_html(info))
+        except Exception as error:  # noqa: BLE001
+            LOGGER.warning(
+                "protein summary fetch failed accession=%s error=%s",
+                accession, error, extra={"event": "set_accession"},
+            )
+            controller.protein_summary.set(
+                "<div class='scop3p-note'>Protein information could not be fetched "
+                "from UniProt for this accession.</div>"
+            )
+
         # Offer the accession's own PDB entries everywhere an entry can be chosen.
         lookup_failed = False
         try:
@@ -617,15 +648,21 @@ def server(input, output, session):
             trail.blocked("accession not set")
             controller.status.set("Set a UniProtKB accession first.")
             return
+        scop3p_note = ""
         try:
             scop3p_table = build_ptm_table(
                 controller.service.fetch_ptms(accession), accession, source="Scop3P"
             )
         except Exception as error:  # noqa: BLE001
-            LOGGER.exception("fetch_ptm scop3p failed accession=%s", accession, extra={"event": "fetch_ptm"})
-            trail.failed("Scop3P PTM fetch failed", error=type(error).__name__)
-            controller.status.set(f"Scop3P PTM error: {error}")
-            return
+            # Degrade, do not abort: the notebook treats a Scop3P failure as "no Scop3P
+            # data", and UniProt PTMs are still worth fetching while Scop3P is down.
+            LOGGER.warning(
+                "fetch_ptm scop3p unavailable accession=%s error=%s",
+                accession, error, extra={"event": "fetch_ptm"},
+            )
+            trail.blocked(f"Scop3P PTMs unavailable: {error}")
+            scop3p_table = build_ptm_table(None, accession, source="Scop3P")
+            scop3p_note = " Scop3P PTMs unavailable (service error); showing UniProt only."
 
         uniprot_table = None
         uniprot_note = ""
@@ -646,13 +683,15 @@ def server(input, output, session):
         dataframe = merge_ptm_tables(scop3p_table, uniprot_table)
         controller.ptm_df.set(dataframe)
 
-        counts = f"Scop3P {len(scop3p_table)}"
+        counts = "Scop3P unavailable" if scop3p_note else f"Scop3P {len(scop3p_table)}"
         if uniprot_table is not None:
             counts += f" + UniProt {len(uniprot_table)}"
-        controller.status.set(f"PTMs fetched: {len(dataframe)} sites ({counts}).{uniprot_note}")
+        controller.status.set(
+            f"PTMs fetched: {len(dataframe)} sites ({counts}).{scop3p_note}{uniprot_note}"
+        )
         trail.produced(
             f"{len(dataframe)} PTM sites",
-            scop3p=len(scop3p_table),
+            scop3p="unavailable" if scop3p_note else len(scop3p_table),
             uniprot="off" if uniprot_table is None else len(uniprot_table),
         )
         LOGGER.info(
@@ -1327,6 +1366,15 @@ def server(input, output, session):
     @render.text
     def status() -> str:
         return controller.status.get()
+
+    @render.ui
+    def protein_summary():
+        if not controller.protein_summary.get():
+            return ui.p(
+                "Set a UniProtKB accession to see protein details.",
+                class_="scop3p-note",
+            )
+        return ui.HTML(controller.protein_summary.get())
 
     @render.ui
     def ptm_table():
